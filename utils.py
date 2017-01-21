@@ -40,11 +40,14 @@ TOTAL_BAR_LENGTH = 86.
 last_time = time.time()
 begin_time = last_time
 def progress_bar(current, total, msg=None):
-    global last_time
-    sys.stdout.write(' [')
+    global last_time, begin_time
+    if current == 0:
+        begin_time = time.time()  # Reset for new bar.
+
     cur_len = int(TOTAL_BAR_LENGTH*current/total)
     rest_len = int(TOTAL_BAR_LENGTH - cur_len) - 1
 
+    sys.stdout.write(' [')
     for i in range(cur_len):
         sys.stdout.write('=')
     sys.stdout.write('>')
@@ -56,6 +59,7 @@ def progress_bar(current, total, msg=None):
     cur_time = time.time()
     step_time = cur_time - last_time
     last_time = cur_time
+
     tot_time = cur_time - begin_time
     L.append('  Step: %s' % format_time(step_time))
     L.append(' | Tot: %s' % format_time(tot_time))
