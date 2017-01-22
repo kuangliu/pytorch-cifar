@@ -1,13 +1,15 @@
 '''Some helper functions for PyTorch, including:
     - get_mean_and_std: calculate the mean and std value of dataset.
+    - msr_init: net parameter initialization.
     - progress_bar: progress bar mimic xlua.progress.
-    - msr_init: (TODO) net parameter initialization.
 '''
 import os
 import sys
 import time
 import math
-# import torch
+
+import torch.nn as nn
+
 
 def get_mean_and_std(dataset):
     '''Compute the mean and std value of dataset.'''
@@ -31,6 +33,20 @@ def get_mean_and_std(dataset):
 # mean, std = get_mean_and_std(dataset)
 # print(mean)
 # print(std)
+
+
+def msr_init(net):
+    '''Initialize layer parameters.'''
+    for layer in net:
+        if type(layer) == nn.Conv2d:
+            n = layer.kernel_size[0]*layer.kernel_size[1]*layer.out_channels
+            layer.weight.data.normal_(0, math.sqrt(2./n))
+            layer.bias.data.zero_()
+        elif type(layer) == nn.BatchNorm2d:
+            layer.weight.data.fill_(1)
+            layer.bias.data.zero_()
+        elif type(layer) == nn.Linear:
+            layer.bias.data.zero_()
 
 
 _, term_width = os.popen('stty size', 'r').read().split()

@@ -12,7 +12,7 @@ import torchvision.transforms as transforms
 import numpy as np
 
 from model import *
-from utils import progress_bar
+from utils import progress_bar, msr_init
 from torch.autograd import Variable
 
 
@@ -33,12 +33,14 @@ classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship'
 # Model
 print('==> Building model..')
 net = VGG('VGG16')
+msr_init(net.features)
+
 if use_cuda:
     net.cuda()
     net = torch.nn.DataParallel(net, device_ids=[0,1,2,3])
 
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
+optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9, weight_decay=1e-4)
 
 # Training
 def train(epoch):
