@@ -55,12 +55,12 @@ def progress_bar(current, total, msg=None):
         sys.stdout.write('.')
     sys.stdout.write(']')
 
-    L = []
     cur_time = time.time()
     step_time = cur_time - last_time
     last_time = cur_time
-
     tot_time = cur_time - begin_time
+
+    L = []
     L.append('  Step: %s' % format_time(step_time))
     L.append(' | Tot: %s' % format_time(tot_time))
     if msg:
