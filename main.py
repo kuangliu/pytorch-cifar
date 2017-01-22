@@ -35,6 +35,7 @@ print('==> Building model..')
 net = VGG('VGG16')
 if use_cuda:
     net.cuda()
+    net = torch.nn.DataParallel(net, device_ids=[0,1,2,3])
 
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9)
