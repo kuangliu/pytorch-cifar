@@ -21,7 +21,7 @@ from torch.autograd import Variable
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--lr', default=1e-3, type=float, help='learning rate')
-parser.add_argument('--resume', default=False, type=bool, help='resume from checkpoint')
+parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
 args = parser.parse_args()
 
 use_cuda = torch.cuda.is_available()
@@ -64,8 +64,8 @@ if use_cuda:
     net = torch.nn.DataParallel(net, device_ids=[0,1,2,3])
 
 criterion = nn.CrossEntropyLoss()
-# optimizer = optim.SGD(net.parameters(), lr=0.001, momentum=0.9, weight_decay=1e-4)
-optimizer = optim.Adam(net.parameters(), lr=0.001, weight_decay=1e-4)
+# optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-4)
+optimizer = optim.Adam(net.parameters(), lr=args.lr, weight_decay=1e-4)
 
 # Training
 def train(epoch):
