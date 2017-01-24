@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
+import torch.backends.cudnn as cudnn
 
 import torchvision
 import torchvision.transforms as transforms
@@ -63,6 +64,7 @@ else:
 if use_cuda:
     net.cuda()
     net = torch.nn.DataParallel(net, device_ids=[0,1,2,3])
+    cudnn.benchmark = True
 
 criterion = nn.CrossEntropyLoss()
 # optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-4)
