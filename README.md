@@ -14,3 +14,4 @@ Cons:
 Accuracy:
 - VGG16: 92.64%
 - ResNet18: 93.02%
+- ResNet50: 93.63%
