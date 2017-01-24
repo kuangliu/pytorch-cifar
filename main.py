@@ -56,8 +56,9 @@ if args.resume:
     start_epoch = checkpoint['epoch']
 else:
     print('==> Building model..')
-    net = VGG('VGG19')
-    msr_init(net.features)
+    # net = VGG('VGG19')
+    # msr_init(net.features)
+    net = resnet18()
 
 if use_cuda:
     net.cuda()

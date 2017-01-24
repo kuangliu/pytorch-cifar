@@ -10,3 +10,7 @@ Pros:
 Cons:
 - No progress bar, sad :(
 - No built-in log.
+
+Accuracy:
+- VGG16: 92.64%
+- ResNet18: 93.02%
