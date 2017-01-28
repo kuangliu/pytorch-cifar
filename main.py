@@ -59,7 +59,8 @@ else:
     print('==> Building model..')
     # net = VGG('VGG19')
     # msr_init(net.features)
-    net = resnet18()
+    # net = resnet18()
+    net = GoogLeNet()
 
 if use_cuda:
     net.cuda()
