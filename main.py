@@ -60,7 +60,8 @@ else:
     # net = VGG('VGG19')
     # msr_init(net.features)
     # net = resnet18()
-    net = GoogLeNet()
+    # net = GoogLeNet()
+    net = densenet_cifar()
 
 if use_cuda:
     net.cuda()
