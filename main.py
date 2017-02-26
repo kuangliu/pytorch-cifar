@@ -61,7 +61,7 @@ else:
     # msr_init(net.features)
     # net = resnet18()
     # net = GoogLeNet()
-    net = densenet_cifar()
+    net = densenet121()
 
 if use_cuda:
     net.cuda()

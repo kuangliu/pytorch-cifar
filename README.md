@@ -1,6 +1,6 @@
-# Train cifar10 with PyTorch
+# Train CIFAR10 with PyTorch
 
-I'm trying to achieve a similar accuracy as [xtorch](https://github.com/kuangliu/xtorch) on the cifar10 dataset with [PyTorch](http://pytorch.org/).
+I'm playing with [PyTorch](http://pytorch.org/) on the CIFAR10 dataset.
 
 Pros:
 - Built-in data loading and augmentation, very nice!
@@ -16,3 +16,4 @@ Accuracy:
 - ResNet18: 93.02%
 - ResNet50: 93.62%
 - ResNet101: 93.75%
+- DenseNet121: 95.04%
