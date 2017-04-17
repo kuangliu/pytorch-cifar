@@ -13,15 +13,13 @@ import torchvision.transforms as transforms
 import os
 import argparse
 
-import numpy as np
-
 from model import *
-from utils import progress_bar, msr_init
+from utils import progress_bar
 from torch.autograd import Variable
 
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
-parser.add_argument('--lr', default=1e-3, type=float, help='learning rate')
+parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
 parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
 args = parser.parse_args()
 
@@ -58,10 +56,10 @@ if args.resume:
 else:
     print('==> Building model..')
     # net = VGG('VGG19')
-    # msr_init(net.features)
-    # net = resnet18()
+    # net = ResNet18()
     # net = GoogLeNet()
-    net = densenet121()
+    # net = DenseNet121()
+    net = ResNeXt29()
 
 if use_cuda:
     net.cuda()
@@ -69,8 +67,7 @@ if use_cuda:
     cudnn.benchmark = True
 
 criterion = nn.CrossEntropyLoss()
-# optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=1e-4)
-optimizer = optim.Adam(net.parameters(), lr=args.lr, weight_decay=1e-4)
+optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
 
 # Training
 def train(epoch):
