@@ -13,14 +13,15 @@ Cons:
 - No built-in log.
 
 ## Accuracy
-| Model        | Acc.    |
-| ------------ |-----------  |
-| VGG16        | 92.64%      |
-| ResNet18     | 93.02%      |
-| ResNet50     | 93.62%      |
-| ResNet101    | 93.75%      |
-| ResNeXt29    | 94.73%      |
-| DenseNet121  | 95.04%      |
+| Model            | Acc.        |
+| ------------     | ----------- |
+| VGG16            | 92.64%      |
+| ResNet18         | 93.02%      |
+| ResNet50         | 93.62%      |
+| ResNet101        | 93.75%      |
+| ResNeXt29(32x4d) | 94.73%      |
+| ResNeXt29(2x64d) | 94.82%      |
+| DenseNet121      | 95.04%      |
 
 ## Learning rate adjustment
 I manually change the `lr` during training:

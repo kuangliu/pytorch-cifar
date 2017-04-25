@@ -59,7 +59,7 @@ else:
     # net = ResNet18()
     # net = GoogLeNet()
     # net = DenseNet121()
-    net = ResNeXt29()
+    net = ResNeXt29_2x64d()
 
 if use_cuda:
     net.cuda()
