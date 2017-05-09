@@ -14,8 +14,7 @@ import torch.nn.init as init
 
 def get_mean_and_std(dataset):
     '''Compute the mean and std value of dataset.'''
-    dataloader = trainloader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=True, num_workers=2)
-
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=1, shuffle=True, num_workers=2)
     mean = torch.zeros(3)
     std = torch.zeros(3)
     print('==> Computing mean and std..')
@@ -26,14 +25,6 @@ def get_mean_and_std(dataset):
     mean.div_(len(dataset))
     std.div_(len(dataset))
     return mean, std
-
-# import torchvision
-# import torchvision.transforms as transforms
-# transform = transforms.Compose([transforms.ToTensor()])
-# dataset = torchvision.datasets.CIFAR10(root='./data', train=True, download=False, transform=transform)
-# mean, std = get_mean_and_std(dataset)
-# print(mean)
-# print(std)
 
 def init_params(net):
     '''Init layer parameters.'''
