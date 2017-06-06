@@ -1,10 +1,10 @@
-'''ResNet in Pytorch.
+'''ResNet in PyTorch.
 
 BasicBlock and Bottleneck module is from the original ResNet paper:
-    "Deep Residual Learning for Image Recognition", CVPR2016.
+"Deep Residual Learning for Image Recognition", CVPR2016.
 
 PreActBlock and PreActBottleneck module is from the later paper:
-    "Identity Mappings in Deep Residual Networks", ECCV2016.
+"Identity Mappings in Deep Residual Networks", ECCV2016,
 which is considered better than the original structure.
 '''
 import torch
