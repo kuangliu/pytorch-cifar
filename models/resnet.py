@@ -57,8 +57,10 @@ class PreActBlock(nn.Module):
         self.shortcut = nn.Sequential()
         if stride != 1 or in_planes != self.expansion*planes:
             self.shortcut = nn.Sequential(
-                nn.Conv2d(in_planes, self.expansion*planes, kernel_size=1, stride=stride, bias=False),
-                nn.BatchNorm2d(self.expansion*planes)
+                nn.BatchNorm2d(in_planes),
+                nn.ReLU(True),
+                nn.Conv2d(in_planes, self.expansion*planes, kernel_size=1, stride=stride, bias=False)
+
             )
 
     def forward(self, x):
@@ -112,8 +114,9 @@ class PreActBottleneck(nn.Module):
         self.shortcut = nn.Sequential()
         if stride != 1 or in_planes != self.expansion*planes:
             self.shortcut = nn.Sequential(
-                nn.Conv2d(in_planes, self.expansion*planes, kernel_size=1, stride=stride, bias=False),
-                nn.BatchNorm2d(self.expansion*planes)
+                nn.BatchNorm2d(in_planes),
+                nn.ReLU(True),
+                nn.Conv2d(in_planes, self.expansion*planes, kernel_size=1, stride=stride, bias=False)
             )
 
     def forward(self, x):
