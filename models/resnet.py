@@ -1,11 +1,12 @@
 '''ResNet in PyTorch.
 
 BasicBlock and Bottleneck module is from the original ResNet paper:
-"Deep Residual Learning for Image Recognition", CVPR2016.
+[1] Kaiming He, Xiangyu Zhang, Shaoqing Ren, Jian Sun
+    Deep Residual Learning for Image Recognition. arXiv:1512.03385
 
 PreActBlock and PreActBottleneck module is from the later paper:
-"Identity Mappings in Deep Residual Networks", ECCV2016,
-which is considered better than the original structure.
+[2] Kaiming He, Xiangyu Zhang, Shaoqing Ren, Jian Sun
+    Identity Mappings in Deep Residual Networks. arXiv:1603.05027
 '''
 import torch
 import torch.nn as nn
@@ -57,16 +58,15 @@ class PreActBlock(nn.Module):
         self.shortcut = nn.Sequential()
         if stride != 1 or in_planes != self.expansion*planes:
             self.shortcut = nn.Sequential(
-                nn.BatchNorm2d(in_planes),
-                nn.ReLU(True),
                 nn.Conv2d(in_planes, self.expansion*planes, kernel_size=1, stride=stride, bias=False)
-
             )
 
     def forward(self, x):
-        out = self.conv1(F.relu(self.bn1(x)))
+        out = F.relu(self.bn1(x))
+        shortcut = self.shortcut(out)
+        out = self.conv1(out)
         out = self.conv2(F.relu(self.bn2(out)))
-        out += self.shortcut(x)
+        out += shortcut
         return out
 
 
@@ -114,16 +114,16 @@ class PreActBottleneck(nn.Module):
         self.shortcut = nn.Sequential()
         if stride != 1 or in_planes != self.expansion*planes:
             self.shortcut = nn.Sequential(
-                nn.BatchNorm2d(in_planes),
-                nn.ReLU(True),
                 nn.Conv2d(in_planes, self.expansion*planes, kernel_size=1, stride=stride, bias=False)
             )
 
     def forward(self, x):
-        out = self.conv1(F.relu(self.bn1(x)))
+        out = F.relu(self.bn1(x))
+        shortcut = self.shortcut(out)
+        out = self.conv1(out)
         out = self.conv2(F.relu(self.bn2(out)))
         out = self.conv3(F.relu(self.bn3(out)))
-        out += self.shortcut(x)
+        out += shortcut
         return out
 
 
