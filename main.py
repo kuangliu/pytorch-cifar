@@ -41,10 +41,10 @@ transform_test = transforms.Compose([
     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
 ])
 
-trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=False, transform=transform_train)
+trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=transform_train)
 trainloader = torch.utils.data.DataLoader(trainset, batch_size=128, shuffle=True, num_workers=2)
 
-testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=False, transform=transform_test)
+testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform_test)
 testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False, num_workers=2)
 
 classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
@@ -74,7 +74,7 @@ if use_cuda:
 
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
-
+steps_lr = [150, 250, 350]
 # Training
 def train(epoch):
     print('\nEpoch: %d' % epoch)
@@ -99,6 +99,10 @@ def train(epoch):
 
         progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
             % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
+def adjust_learning_rate(optimizer):
+    for group in optimizer.param_groups:
+        group['lr'] = group['lr'] * lr_decay
+    return
 
 def test(epoch):
     global best_acc
@@ -136,6 +140,9 @@ def test(epoch):
         best_acc = acc
 
 
-for epoch in range(start_epoch, start_epoch+200):
+for epoch in range(0,400):
     train(epoch)
+    # update the optimizer learning rate
+    if epoch in steps_lr:
+        adjust_learning_rate(optimizer)
     test(epoch)
