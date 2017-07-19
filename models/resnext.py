@@ -76,17 +76,17 @@ class ResNeXt(nn.Module):
         return out
 
 
-def ResNeXt29_2x64d():
-    return ResNeXt(num_blocks=[3,3,3], cardinality=2, bottleneck_width=64)
+def ResNeXt29_2x64d(cifar100=False):
+    return ResNeXt(num_blocks=[3,3,3], cardinality=2, bottleneck_width=64, num_classes=100 if cifar100 else 10)
 
-def ResNeXt29_4x64d():
-    return ResNeXt(num_blocks=[3,3,3], cardinality=4, bottleneck_width=64)
+def ResNeXt29_4x64d(cifar100=False):
+    return ResNeXt(num_blocks=[3,3,3], cardinality=4, bottleneck_width=64, num_classes=100 if cifar100 else 10)
 
-def ResNeXt29_8x64d():
-    return ResNeXt(num_blocks=[3,3,3], cardinality=8, bottleneck_width=64)
+def ResNeXt29_8x64d(cifar100=False):
+    return ResNeXt(num_blocks=[3,3,3], cardinality=8, bottleneck_width=64, num_classes=100 if cifar100 else 10)
 
-def ResNeXt29_32x4d():
-    return ResNeXt(num_blocks=[3,3,3], cardinality=32, bottleneck_width=4)
+def ResNeXt29_32x4d(cifar100=False):
+    return ResNeXt(num_blocks=[3,3,3], cardinality=32, bottleneck_width=4, num_classes=100 if cifar100 else 10)
 
 def test_resnext():
     net = ResNeXt29_2x64d()

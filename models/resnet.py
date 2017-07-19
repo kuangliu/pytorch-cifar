@@ -160,20 +160,20 @@ class ResNet(nn.Module):
         return out
 
 
-def ResNet18():
-    return ResNet(PreActBlock, [2,2,2,2])
+def ResNet18(cifar100=False):
+    return ResNet(PreActBlock, [2,2,2,2], num_classes=100 if cifar100 else 10)
 
-def ResNet34():
-    return ResNet(BasicBlock, [3,4,6,3])
+def ResNet34(cifar100=False):
+    return ResNet(BasicBlock, [3,4,6,3], num_classes=100 if cifar100 else 10)
 
-def ResNet50():
-    return ResNet(Bottleneck, [3,4,6,3])
+def ResNet50(cifar100=False):
+    return ResNet(Bottleneck, [3,4,6,3], num_classes=100 if cifar100 else 10)
 
-def ResNet101():
-    return ResNet(Bottleneck, [3,4,23,3])
+def ResNet101(cifar100=False):
+    return ResNet(Bottleneck, [3,4,23,3], num_classes=100 if cifar100 else 10)
 
-def ResNet152():
-    return ResNet(Bottleneck, [3,8,36,3])
+def ResNet152(cifar100=False):
+    return ResNet(Bottleneck, [3,8,36,3], num_classes=100 if cifar100 else 10)
 
 
 def test():
