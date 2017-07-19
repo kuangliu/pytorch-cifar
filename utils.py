@@ -122,3 +122,16 @@ def format_time(seconds):
     if f == '':
         f = '0ms'
     return f
+
+class schedule:
+    def __init__(self, optimizer, milestones=[150,250], gamma=0.1):
+        self.opt = optimizer
+        self.milestones = milestones
+        self.gamma = gamma
+        self.epoch = 0
+    
+    def step(self):
+        self.epoch += 1
+        if self.epoch in self.milestones:
+            for param_group in self.optimizer.param_groups:
+                param_group['lr'] *= self.gamma

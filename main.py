@@ -14,7 +14,7 @@ import os
 import argparse
 
 from models import *
-from utils import progress_bar
+from utils import progress_bar, schedule
 from torch.autograd import Variable
 
 
@@ -81,8 +81,7 @@ if use_cuda:
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
 
-if args.sch:
-    scheduler = MultiStepLR(optimizer, milestones=[150,250], gamma=0.1)
+if args.sch: scheduler = schedule(optimizer, milestones=[150,250], gamma=0.1)
 
 # Training
 def train(epoch):
@@ -92,8 +91,6 @@ def train(epoch):
     correct = 0
     total = 0
     for batch_idx, (inputs, targets) in enumerate(trainloader):
-        if args.sch:
-            schduler.step()
         if use_cuda:
             inputs, targets = inputs.cuda(), targets.cuda()
         optimizer.zero_grad()
@@ -102,6 +99,7 @@ def train(epoch):
         loss = criterion(outputs, targets)
         loss.backward()
         optimizer.step()
+        if args.sch: scheduler.step()
 
         train_loss += loss.data[0]
         _, predicted = torch.max(outputs.data, 1)
