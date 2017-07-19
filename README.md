@@ -23,6 +23,7 @@ Cons:
 | ResNeXt29(2x64d)  | 94.82%      |
 | DenseNet121       | 95.04%      |
 | ResNet18(pre-act) | 94.75%      |
+| DPN92             | 95.16%      |
 
 ## Learning rate adjustment
 I manually change the `lr` during training:
