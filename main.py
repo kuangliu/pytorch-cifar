@@ -66,7 +66,8 @@ else:
     # net = DenseNet121()
     # net = ResNeXt29_2x64d()
     # net = MobileNet()
-    net = DPN26()
+    # net = DPN92()
+    net = ShuffleNetG2()
 
 if use_cuda:
     net.cuda()
