@@ -133,5 +133,5 @@ class schedule:
     def step(self):
         self.epoch += 1
         if self.epoch in self.milestones:
-            for param_group in self.optimizer.param_groups:
+            for param_group in self.opt.param_groups:
                 param_group['lr'] *= self.gamma

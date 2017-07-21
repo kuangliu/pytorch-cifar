@@ -72,23 +72,23 @@ class DPN(nn.Module):
         return out
 
 
-def DPN26():
+def DPN26(cifar100=False):
     cfg = {
         'in_planes': (96,192,384,768),
         'out_planes': (256,512,1024,2048),
         'num_blocks': (2,2,2,2),
         'dense_depth': (16,32,24,128)
     }
-    return DPN(cfg)
+    return DPN(cfg, cifar100=cifar100)
 
-def DPN92():
+def DPN92(cifar100=False):
     cfg = {
         'in_planes': (96,192,384,768),
         'out_planes': (256,512,1024,2048),
         'num_blocks': (3,4,20,3),
         'dense_depth': (16,32,24,128)
     }
-    return DPN(cfg)
+    return DPN(cfg, cifar100=cifar100)
 
 
 def test():

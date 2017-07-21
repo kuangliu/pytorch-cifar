@@ -23,8 +23,11 @@ parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
 parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
 parser.add_argument('--cifar100', type=bool, default=False, metavar='cifar100',
                             help='Whether cifar100 is being trained on')
-parser.add_argument('--sch', type=bool, default=False, metavar='cifar100',
+parser.add_argument('--sch', type=bool, default=False, metavar='sch',
                             help='learning rate schedule is being used')
+parser.add_argument('--noise', type=float, default=0.0, metavar='noise',
+                            help='Noise to be added to input in training as multiple of standard deviation')
+
 args = parser.parse_args()
 
 use_cuda = torch.cuda.is_available()
@@ -66,12 +69,13 @@ if args.resume:
 else:
     print('==> Building model..')
     # net = VGG('VGG19i', args.cifar100)
-    # net = ResNet18(args.cifar100)
+    net = ResNet18(args.cifar100)
     # net = GoogLeNet(args.cifar100)
     # net = DenseNet121(args.cifar100)
     # net = ResNeXt29_2x64d(args.cifar100)
     # net = MobileNet()
-    net = ResNet101(args.cifar100)
+    # net = ResNet101(args.cifar100)
+    # net = DPN92(args.cifar100)
 
 if use_cuda:
     net.cuda()
@@ -95,6 +99,7 @@ def train(epoch):
             inputs, targets = inputs.cuda(), targets.cuda()
         optimizer.zero_grad()
         inputs, targets = Variable(inputs), Variable(targets)
+        inputs += torch.autograd.Variable(torch.randn(inputs.size()).cuda() * 0.2009 * args.noise) # 0.2009 is dataset std dev
         outputs = net(inputs)
         loss = criterion(outputs, targets)
         loss.backward()
@@ -105,7 +110,7 @@ def train(epoch):
         _, predicted = torch.max(outputs.data, 1)
         total += targets.size(0)
         correct += predicted.eq(targets.data).cpu().sum()
-
+        print ("cifar100" if cifar100 else "cifar10")
         progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
             % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
 

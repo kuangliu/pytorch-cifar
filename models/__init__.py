@@ -6,3 +6,4 @@ from .resnext import *
 from .densenet import *
 from .googlenet import *
 from .mobilenet import *
+from .acn import *
