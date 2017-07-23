@@ -14,7 +14,6 @@ import torch.nn.functional as F
 
 from torch.autograd import Variable
 
-
 def conv3x3(in_planes, out_planes, stride=1):
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride, padding=1, bias=False)
 
@@ -141,9 +140,6 @@ class ResNet(nn.Module):
         self.linear = nn.Linear(512*block.expansion, num_classes)
         self.dropout = nn.Dropout(0.3)
 
-    def __str__(self):
-        return "Resnet with block:" + str(self.block)
-
     def _make_layer(self, block, planes, num_blocks, stride):
         strides = [stride] + [1]*(num_blocks-1)
         layers = []
@@ -154,7 +150,7 @@ class ResNet(nn.Module):
 
     def forward(self, x):
         if self.training:
-            x = self.input_dropout(x)
+            x = self.dropout(x)
         out = F.relu(self.bn1(self.conv1(x)))
         out = self.layer1(out)
         out = F.dropout(out, training=self.training)

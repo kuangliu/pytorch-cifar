@@ -10,7 +10,7 @@ class LeNet(nn.Module):
         self.fc1   = nn.Linear(16*5*5, 120)
         self.fc2   = nn.Linear(120, 84)
         self.fc3   = nn.Linear(84, 100 if cifar100 else 10)
-
+    
     def forward(self, x):
         out = F.relu(self.conv1(x))
         out = F.max_pool2d(out, 2)

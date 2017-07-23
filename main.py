@@ -17,7 +17,6 @@ from models import *
 from utils import progress_bar, schedule
 from torch.autograd import Variable
 
-
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
 parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
@@ -69,13 +68,14 @@ if args.resume:
 else:
     print('==> Building model..')
     # net = VGG('VGG19i', args.cifar100)
-    net = ResNet18(args.cifar100)
+    # net = ResNet18(args.cifar100)
     # net = GoogLeNet(args.cifar100)
     # net = DenseNet121(args.cifar100)
     # net = ResNeXt29_2x64d(args.cifar100)
     # net = MobileNet()
     # net = ResNet101(args.cifar100)
     # net = DPN92(args.cifar100)
+    net = ACN(args.cifar100)
 
 if use_cuda:
     net.cuda()
@@ -94,6 +94,8 @@ def train(epoch):
     train_loss = 0
     correct = 0
     total = 0
+    print (net)
+    print (vars(args))
     for batch_idx, (inputs, targets) in enumerate(trainloader):
         if use_cuda:
             inputs, targets = inputs.cuda(), targets.cuda()
@@ -110,8 +112,7 @@ def train(epoch):
         _, predicted = torch.max(outputs.data, 1)
         total += targets.size(0)
         correct += predicted.eq(targets.data).cpu().sum()
-        print ("cifar100" if cifar100 else "cifar10")
-        progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
+        progress_bar(batch_idx, len(trainloader), 'Loss: %.5f | Acc: %.3f%% (%d/%d)'
             % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
 def test(epoch):
@@ -132,7 +133,7 @@ def test(epoch):
         total += targets.size(0)
         correct += predicted.eq(targets.data).cpu().sum()
 
-        progress_bar(batch_idx, len(testloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
+        progress_bar(batch_idx, len(testloader), 'Loss: %.5f | Acc: %.3f%% (%d/%d)'
             % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
     # Save checkpoint.
@@ -148,7 +149,6 @@ def test(epoch):
             os.mkdir('checkpoint')
         torch.save(state, './checkpoint/ckpt.t7')
         best_acc = acc
-
 
 for epoch in range(start_epoch, start_epoch+(200 if not args.sch else 350)):
     train(epoch)
