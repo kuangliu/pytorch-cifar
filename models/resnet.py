@@ -55,7 +55,6 @@ class PreActBlock(nn.Module):
         self.bn2 = nn.BatchNorm2d(planes)
         self.conv2 = conv3x3(planes, planes)
 
-        self.shortcut = nn.Sequential()
         if stride != 1 or in_planes != self.expansion*planes:
             self.shortcut = nn.Sequential(
                 nn.Conv2d(in_planes, self.expansion*planes, kernel_size=1, stride=stride, bias=False)
@@ -63,7 +62,7 @@ class PreActBlock(nn.Module):
 
     def forward(self, x):
         out = F.relu(self.bn1(x))
-        shortcut = self.shortcut(out)
+        shortcut = self.shortcut(out) if hasattr(self, 'shortcut') else x
         out = self.conv1(out)
         out = self.conv2(F.relu(self.bn2(out)))
         out += shortcut
@@ -111,7 +110,6 @@ class PreActBottleneck(nn.Module):
         self.bn3 = nn.BatchNorm2d(planes)
         self.conv3 = nn.Conv2d(planes, self.expansion*planes, kernel_size=1, bias=False)
 
-        self.shortcut = nn.Sequential()
         if stride != 1 or in_planes != self.expansion*planes:
             self.shortcut = nn.Sequential(
                 nn.Conv2d(in_planes, self.expansion*planes, kernel_size=1, stride=stride, bias=False)
@@ -119,7 +117,7 @@ class PreActBottleneck(nn.Module):
 
     def forward(self, x):
         out = F.relu(self.bn1(x))
-        shortcut = self.shortcut(out)
+        shortcut = self.shortcut(out) if hasattr(self, 'shortcut') else x
         out = self.conv1(out)
         out = self.conv2(F.relu(self.bn2(out)))
         out = self.conv3(F.relu(self.bn3(out)))
