@@ -22,7 +22,7 @@ Cons:
 | ResNeXt29(32x4d)  | 94.73%      |
 | ResNeXt29(2x64d)  | 94.82%      |
 | DenseNet121       | 95.04%      |
-| ResNet18(pre-act) | 94.75%      |
+| ResNet18(pre-act) | 95.11%      |
 | DPN92             | 95.16%      |
 
 ## Learning rate adjustment
