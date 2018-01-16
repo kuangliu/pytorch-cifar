@@ -14,7 +14,7 @@ import os
 import argparse
 
 from models import *
-from utils import progress_bar
+from utils import get_progress_bar, update_progress_bar
 from torch.autograd import Variable
 
 
@@ -82,10 +82,12 @@ optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5
 # Training
 def train(epoch):
     print('\nEpoch: %d' % epoch)
+    print('Train')
     net.train()
     train_loss = 0
     correct = 0
     total = 0
+    progress_bar_obj = get_progress_bar(len(trainloader))
     for batch_idx, (inputs, targets) in enumerate(trainloader):
         if use_cuda:
             inputs, targets = inputs.cuda(), targets.cuda()
@@ -101,15 +103,17 @@ def train(epoch):
         total += targets.size(0)
         correct += predicted.eq(targets.data).cpu().sum()
 
-        progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-            % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
+        update_progress_bar(progress_bar_obj, index=batch_idx, loss=(train_loss / (batch_idx + 1)),
+                            acc=(correct / total), c=correct, t=total)
 
 def test(epoch):
+    print('\nTest')
     global best_acc
     net.eval()
     test_loss = 0
     correct = 0
     total = 0
+    progress_bar_obj = get_progress_bar(len(testloader))
     for batch_idx, (inputs, targets) in enumerate(testloader):
         if use_cuda:
             inputs, targets = inputs.cuda(), targets.cuda()
@@ -122,13 +126,13 @@ def test(epoch):
         total += targets.size(0)
         correct += predicted.eq(targets.data).cpu().sum()
 
-        progress_bar(batch_idx, len(testloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-            % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
+        update_progress_bar(progress_bar_obj, index=batch_idx, loss=(test_loss / (batch_idx + 1)),
+                            acc=(correct / total), c=correct, t=total)
 
     # Save checkpoint.
     acc = 100.*correct/total
     if acc > best_acc:
-        print('Saving..')
+        print('\nSaving..')
         state = {
             'net': net.module if use_cuda else net,
             'acc': acc,

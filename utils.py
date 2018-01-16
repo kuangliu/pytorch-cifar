@@ -8,6 +8,7 @@ import sys
 import time
 import math
 
+import progressbar
 import torch.nn as nn
 import torch.nn.init as init
 
@@ -42,54 +43,30 @@ def init_params(net):
                 init.constant(m.bias, 0)
 
 
-_, term_width = os.popen('stty size', 'r').read().split()
-term_width = int(term_width)
+def get_progress_bar(total):
+    format_custom_text = progressbar.FormatCustomText(
+        'Loss: %(loss).3f | Acc: %(acc).3f%% (%(c)d/%(t)d)',
+        dict(
+            loss=0,
+            acc=0,
+            c=0,
+            t=0,
+        ),
+    )
+    prog_bar = progressbar.ProgressBar(0, total, widgets=[
+        progressbar.Counter(), ' of {} '.format(total),
+        progressbar.Bar(),
+        ' ', progressbar.ETA(),
+        ' ', format_custom_text
+    ])
+    return prog_bar, format_custom_text
 
-TOTAL_BAR_LENGTH = 65.
-last_time = time.time()
-begin_time = last_time
-def progress_bar(current, total, msg=None):
-    global last_time, begin_time
-    if current == 0:
-        begin_time = time.time()  # Reset for new bar.
 
-    cur_len = int(TOTAL_BAR_LENGTH*current/total)
-    rest_len = int(TOTAL_BAR_LENGTH - cur_len) - 1
+def update_progress_bar(progress_bar_obj, index=None, loss=None, acc=None, c=None, t=None):
+    prog_bar, format_custom_text = progress_bar_obj
+    format_custom_text.update_mapping(loss=loss, acc=acc, c=c, t=t)
+    prog_bar.update(index)
 
-    sys.stdout.write(' [')
-    for i in range(cur_len):
-        sys.stdout.write('=')
-    sys.stdout.write('>')
-    for i in range(rest_len):
-        sys.stdout.write('.')
-    sys.stdout.write(']')
-
-    cur_time = time.time()
-    step_time = cur_time - last_time
-    last_time = cur_time
-    tot_time = cur_time - begin_time
-
-    L = []
-    L.append('  Step: %s' % format_time(step_time))
-    L.append(' | Tot: %s' % format_time(tot_time))
-    if msg:
-        L.append(' | ' + msg)
-
-    msg = ''.join(L)
-    sys.stdout.write(msg)
-    for i in range(term_width-int(TOTAL_BAR_LENGTH)-len(msg)-3):
-        sys.stdout.write(' ')
-
-    # Go back to the center of the bar.
-    for i in range(term_width-int(TOTAL_BAR_LENGTH/2)+2):
-        sys.stdout.write('\b')
-    sys.stdout.write(' %d/%d ' % (current+1, total))
-
-    if current < total-1:
-        sys.stdout.write('\r')
-    else:
-        sys.stdout.write('\n')
-    sys.stdout.flush()
 
 def format_time(seconds):
     days = int(seconds / 3600/24)
