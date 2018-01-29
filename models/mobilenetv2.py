@@ -72,8 +72,8 @@ class MobileNetV2(nn.Module):
         out = F.relu(self.bn1(self.conv1(x)))
         out = self.layers(out)
         out = F.relu(self.bn2(self.conv2(out)))
-        # NOTE: change pooling kernel_size 7 -> 2 for CIFAR10
-        out = F.avg_pool2d(out, 2)
+        # NOTE: change pooling kernel_size 7 -> 4 for CIFAR10
+        out = F.avg_pool2d(out, 4)
         out = out.view(out.size(0), -1)
         out = self.linear(out)
         return out
