@@ -5,6 +5,7 @@ import torch
 from torch.autograd import Variable
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.backends.cudnn as cudnn
 import torchvision
 import torchvision.transforms as transforms
 
