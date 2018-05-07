@@ -3,8 +3,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from torch.autograd import Variable
-
 
 class Bottleneck(nn.Module):
     def __init__(self, last_planes, in_planes, out_planes, dense_depth, stride, first_layer):
@@ -93,7 +91,7 @@ def DPN92():
 
 def test():
     net = DPN92()
-    x = Variable(torch.randn(1,3,32,32))
+    x = torch.randn(1,3,32,32)
     y = net(x)
     print(y)
 

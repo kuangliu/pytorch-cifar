@@ -8,8 +8,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from torch.autograd import Variable
-
 
 class PreActBlock(nn.Module):
     '''Pre-activation version of the BasicBlock.'''
@@ -114,7 +112,7 @@ def PreActResNet152():
 
 def test():
     net = PreActResNet18()
-    y = net(Variable(torch.randn(1,3,32,32)))
+    y = net((torch.randn(1,3,32,32))
     print(y.size())
 
 # test()

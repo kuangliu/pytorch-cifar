@@ -3,8 +3,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from torch.autograd import Variable
-
 
 class Inception(nn.Module):
     def __init__(self, in_planes, n1x1, n3x3red, n3x3, n5x5red, n5x5, pool_planes):
@@ -99,7 +97,11 @@ class GoogLeNet(nn.Module):
         out = self.linear(out)
         return out
 
-# net = GoogLeNet()
-# x = torch.randn(1,3,32,32)
-# y = net(Variable(x))
-# print(y.size())
+
+def test():
+    net = GoogLeNet()
+    x = torch.randn(1,3,32,32)
+    y = net(x)
+    print(y.size())
+
+# test()

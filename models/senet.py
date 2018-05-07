@@ -6,8 +6,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from torch.autograd import Variable
-
 
 class BasicBlock(nn.Module):
     def __init__(self, in_planes, planes, stride=1):
@@ -117,7 +115,7 @@ def SENet18():
 
 def test():
     net = SENet18()
-    y = net(Variable(torch.randn(1,3,32,32)))
+    y = net(torch.randn(1,3,32,32))
     print(y.size())
 
 # test()
