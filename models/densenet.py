@@ -5,8 +5,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from torch.autograd import Variable
-
 
 class Bottleneck(nn.Module):
     def __init__(self, in_planes, growth_rate):
@@ -100,10 +98,10 @@ def DenseNet161():
 def densenet_cifar():
     return DenseNet(Bottleneck, [6,12,24,16], growth_rate=12)
 
-def test_densenet():
+def test():
     net = densenet_cifar()
     x = torch.randn(1,3,32,32)
-    y = net(Variable(x))
+    y = net(x)
     print(y)
 
-# test_densenet()
+# test()

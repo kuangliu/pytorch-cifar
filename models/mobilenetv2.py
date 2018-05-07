@@ -7,8 +7,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from torch.autograd import Variable
-
 
 class Block(nn.Module):
     '''expand + depthwise + pointwise'''
@@ -81,7 +79,7 @@ class MobileNetV2(nn.Module):
 
 def test():
     net = MobileNetV2()
-    x = Variable(torch.randn(2,3,32,32))
+    x = torch.randn(2,3,32,32)
     y = net(x)
     print(y.size())
 

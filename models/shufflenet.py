@@ -6,8 +6,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from torch.autograd import Variable
-
 
 class ShuffleBlock(nn.Module):
     def __init__(self, groups):
@@ -104,7 +102,7 @@ def ShuffleNetG3():
 
 def test():
     net = ShuffleNetG2()
-    x = Variable(torch.randn(1,3,32,32))
+    x = torch.randn(1,3,32,32)
     y = net(x)
     print(y)
 

@@ -6,8 +6,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from torch.autograd import Variable
-
 
 class SepConv(nn.Module):
     '''Separable Convolution.'''
@@ -120,8 +118,7 @@ def PNASNetB():
 
 def test():
     net = PNASNetB()
-    print(net)
-    x = Variable(torch.randn(1,3,32,32))
+    x = torch.randn(1,3,32,32)
     y = net(x)
     print(y)
 
