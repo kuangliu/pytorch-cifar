@@ -15,7 +15,6 @@ import argparse
 
 from models import *
 from utils import progress_bar
-from torch.autograd import Variable
 
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')

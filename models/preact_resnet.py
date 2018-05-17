@@ -112,7 +112,7 @@ def PreActResNet152():
 
 def test():
     net = PreActResNet18()
-    y = net((torch.randn(1,3,32,32))
+    y = net((torch.randn(1,3,32,32)))
     print(y.size())
 
 # test()
