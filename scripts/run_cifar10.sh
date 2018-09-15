@@ -16,4 +16,5 @@ python main.py \
   --batch-size=1 \
   --top-k=$TOP_K \
   --net=$NET \
+  --pool-size=$POOL_SIZE \
   --lr $LR &> $OUTPUT_DIR/$OUTPUT_FILE

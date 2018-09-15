@@ -20,7 +20,7 @@ from utils import progress_bar
 
 
 # Training
-def train(args, net, trainloader, device, optimizer, epoch):
+def train(args, net, trainloader, device, optimizer, epoch, total_num_images_backpropped):
     print('\nEpoch: %d' % epoch)
     net.train()
     train_loss = 0
@@ -34,9 +34,17 @@ def train(args, net, trainloader, device, optimizer, epoch):
     loss_reduction = None
 
     for batch_idx, (data, targets) in enumerate(trainloader):
+
         data, targets = data.to(device), targets.to(device)
 
         if args.selective_backprop:
+
+            output = net(data)
+            loss = nn.CrossEntropyLoss(reduce=True)(output, targets)
+            losses_pool.append(loss.item())
+            data_pool.append(data)
+            targets_pool.append(targets)
+
             if len(losses_pool) == args.pool_size:
             # Choose frames from pool to backprop
                 indices = np.array(losses_pool).argsort()[-args.top_k:]
@@ -46,12 +54,6 @@ def train(args, net, trainloader, device, optimizer, epoch):
                 data_batch = torch.stack(chosen_data, dim=1)[0]
                 targets_batch = torch.cat(chosen_targets)
                 output_batch = net(data_batch) # redundant
-
-                '''
-                data_batch = torch.stack(data_pool, dim=1)[0]
-                targets_batch = torch.cat(targets_pool)
-                output_batch = net(data_batch)
-                '''
 
                 # Note: This will only work for batch size of 1
                 loss_reduction = nn.CrossEntropyLoss(reduce=True)(output_batch, targets_batch)
@@ -67,14 +69,6 @@ def train(args, net, trainloader, device, optimizer, epoch):
 
                 output = output_batch
                 targets = targets_batch
-
-            else:
-            # Accumulate frames to choose from
-                output = net(data)
-                loss = nn.CrossEntropyLoss(reduce=True)(output, targets)
-                losses_pool.append(loss.item())
-                data_pool.append(data)
-                targets_pool.append(targets)
 
         else:
             output = net(data)
@@ -92,13 +86,14 @@ def train(args, net, trainloader, device, optimizer, epoch):
         if batch_idx % 10 == 0 and loss_reduction is not None:
             print('train_debug,{},{},{:.6f},{:.6f},{},{:.6f}'.format(
                         epoch,
-                        num_backprop,
+                        total_num_images_backpropped + num_backprop,
                         loss_reduction.item(),
                         train_loss / float(num_backprop),
                         time.time(),
                         100.*correct/total))
+    return num_backprop
 
-def test(args, net, testloader, device, epoch):
+def test(args, net, testloader, device, epoch, total_num_images_backpropped):
     net.eval()
     test_loss = 0
     correct = 0
@@ -115,8 +110,9 @@ def test(args, net, testloader, device, epoch):
             correct += predicted.eq(targets).sum().item()
 
     test_loss /= len(testloader.dataset)
-    print('test_debug,{},{:.6f},{:.6f},{}'.format(
+    print('test_debug,{},{},{:.6f},{:.6f},{}'.format(
                 epoch,
+                total_num_images_backpropped,
                 test_loss,
                 100.*correct/total,
                 time.time()))
@@ -227,9 +223,11 @@ def main():
 
     optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
 
+    total_num_images_backpropped = 0
     for epoch in range(start_epoch, start_epoch+500):
-        train(args, net, trainloader, device, optimizer, epoch)
-        test(args, net, testloader, device, epoch)
+        test(args, net, testloader, device, epoch, total_num_images_backpropped)
+        num_images_backpropped = train(args, net, trainloader, device, optimizer, epoch, total_num_images_backpropped)
+        total_num_images_backpropped += num_images_backpropped
 
 if __name__ == '__main__':
     main()
