@@ -1,6 +1,7 @@
 '''Train CIFAR10 with PyTorch.'''
 from __future__ import print_function
 
+import numpy as np
 import time
 import torch
 import torch.nn as nn
@@ -25,39 +26,64 @@ def train(args, net, trainloader, device, optimizer, epoch):
     train_loss = 0
     correct = 0
     total = 0
-    all_losses = []
-    loss_reduction = None
 
+    losses_pool = []
+    data_pool = []
+    targets_pool = []
     num_backprop = 0
+    loss_reduction = None
 
     for batch_idx, (data, targets) in enumerate(trainloader):
         data, targets = data.to(device), targets.to(device)
-        optimizer.zero_grad()
-        output = net(data)
 
         if args.selective_backprop:
-            loss = nn.CrossEntropyLoss(reduce=False)(output, targets)
-            k = min(len(loss), args.top_k)
-            values, indices = torch.topk(loss, k)
+            if len(losses_pool) == args.pool_size:
+            # Choose frames from pool to backprop
+                indices = np.array(losses_pool).argsort()[-args.top_k:]
+                chosen_data = [data_pool[i] for i in indices]
+                chosen_targets = [targets_pool[i] for i in indices]
 
-            if len(all_losses) == len(loss):
-                all_losses_tensor = torch.cat(all_losses)
-                loss_reduction = torch.mean(all_losses_tensor)
+                data_batch = torch.stack(chosen_data, dim=1)[0]
+                targets_batch = torch.cat(chosen_targets)
+                output_batch = net(data_batch) # redundant
+
+                '''
+                data_batch = torch.stack(data_pool, dim=1)[0]
+                targets_batch = torch.cat(targets_pool)
+                output_batch = net(data_batch)
+                '''
+
+                # Note: This will only work for batch size of 1
+                loss_reduction = nn.CrossEntropyLoss(reduce=True)(output_batch, targets_batch)
+                optimizer.zero_grad()
                 loss_reduction.backward()
                 optimizer.step()
-
                 train_loss += loss_reduction.item()
-                num_backprop += 1
-                all_losses = []
+                num_backprop += args.top_k
+
+                losses_pool = []
+                data_pool = []
+                targets_pool = []
+
+                output = output_batch
+                targets = targets_batch
 
             else:
-                all_losses.append(values)
+            # Accumulate frames to choose from
+                output = net(data)
+                loss = nn.CrossEntropyLoss(reduce=True)(output, targets)
+                losses_pool.append(loss.item())
+                data_pool.append(data)
+                targets_pool.append(targets)
+
         else:
+            output = net(data)
             loss_reduction = nn.CrossEntropyLoss(reduce=True)(output, targets)
+            optimizer.zero_grad()
             loss_reduction.backward()
             optimizer.step()
             train_loss += loss_reduction.item()
-            num_backprop += 1
+            num_backprop += args.batch_size
 
         _, predicted = output.max(1)
         total += targets.size(0)
@@ -118,13 +144,15 @@ def main():
     parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
     parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
     parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
-    parser.add_argument('--batch-size', type=int, default=64, metavar='N',
-                        help='input batch size for training (default: 64)')
+    parser.add_argument('--batch-size', type=int, default=1, metavar='N',
+                        help='input batch size for training (default: 1)')
     parser.add_argument('--test-batch-size', type=int, default=1000, metavar='N',
                         help='input batch size for testing (default: 1000)')
     parser.add_argument('--log-interval', type=int, default=10, metavar='N',
                         help='how many batches to wait before logging training status')
-    parser.add_argument('--top-k', type=int, default=1, metavar='N',
+    parser.add_argument('--top-k', type=int, default=8, metavar='N',
+                        help='how many images to backprop per batch')
+    parser.add_argument('--pool-size', type=int, default=16, metavar='N',
                         help='how many images to backprop per batch')
     parser.add_argument('--selective-backprop', type=bool, default=False, metavar='N',
                         help='whether or not to use selective-backprop')
