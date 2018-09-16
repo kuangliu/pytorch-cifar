@@ -1,6 +1,7 @@
 '''Train CIFAR10 with PyTorch.'''
 from __future__ import print_function
 
+import pickle
 import numpy as np
 import time
 import torch
@@ -20,7 +21,15 @@ from utils import progress_bar
 
 
 # Training
-def train(args, net, trainloader, device, optimizer, epoch, total_num_images_backpropped):
+def train(args,
+          net,
+          trainloader,
+          device,
+          optimizer,
+          epoch,
+          total_num_images_backpropped,
+          images_hist):
+
     print('\nEpoch: %d' % epoch)
     net.train()
     train_loss = 0
@@ -30,10 +39,11 @@ def train(args, net, trainloader, device, optimizer, epoch, total_num_images_bac
     losses_pool = []
     data_pool = []
     targets_pool = []
+    ids_pool = []
     num_backprop = 0
     loss_reduction = None
 
-    for batch_idx, (data, targets) in enumerate(trainloader):
+    for batch_idx, (data, targets, image_id) in enumerate(trainloader):
 
         data, targets = data.to(device), targets.to(device)
 
@@ -44,16 +54,23 @@ def train(args, net, trainloader, device, optimizer, epoch, total_num_images_bac
             losses_pool.append(loss.item())
             data_pool.append(data)
             targets_pool.append(targets)
+            ids_pool.append(image_id.item())
 
             if len(losses_pool) == args.pool_size:
             # Choose frames from pool to backprop
                 indices = np.array(losses_pool).argsort()[-args.top_k:]
                 chosen_data = [data_pool[i] for i in indices]
                 chosen_targets = [targets_pool[i] for i in indices]
+                chosen_ids = [ids_pool[i] for i in indices]
 
                 data_batch = torch.stack(chosen_data, dim=1)[0]
                 targets_batch = torch.cat(chosen_targets)
                 output_batch = net(data_batch) # redundant
+
+                for chosen_id in chosen_ids:
+                    if chosen_id not in images_hist.keys():
+                        images_hist[chosen_id] = 0
+                    images_hist[chosen_id] += 1
 
                 # Note: This will only work for batch size of 1
                 loss_reduction = nn.CrossEntropyLoss(reduce=True)(output_batch, targets_batch)
@@ -66,6 +83,7 @@ def train(args, net, trainloader, device, optimizer, epoch, total_num_images_bac
                 losses_pool = []
                 data_pool = []
                 targets_pool = []
+                ids_pool = []
 
                 output = output_batch
                 targets = targets_batch
@@ -139,6 +157,7 @@ def main():
 
     parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
     parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
+    parser.add_argument('--decay', default=5e-4, type=float, help='decay')
     parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
     parser.add_argument('--batch-size', type=int, default=1, metavar='N',
                         help='input batch size for training (default: 1)')
@@ -154,6 +173,9 @@ def main():
                         help='whether or not to use selective-backprop')
     parser.add_argument('--net', default="resnet", metavar='N',
                         help='which network architecture to train')
+    parser.add_argument('--pickle-file', default="/tmp/image_id_hist.pickle",
+                        help='image id histogram pickle')
+
     args = parser.parse_args()
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -175,6 +197,7 @@ def main():
     ])
 
     trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=False, transform=transform_train)
+    trainset = [t + (i,) for i, t in enumerate(trainset)]
     trainloader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True, num_workers=2)
 
     testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=False, transform=transform_test)
@@ -221,13 +244,23 @@ def main():
         best_acc = checkpoint['acc']
         start_epoch = checkpoint['epoch']
 
-    optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
+    optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=args.decay)
 
+    images_hist = {}
     total_num_images_backpropped = 0
     for epoch in range(start_epoch, start_epoch+500):
         test(args, net, testloader, device, epoch, total_num_images_backpropped)
-        num_images_backpropped = train(args, net, trainloader, device, optimizer, epoch, total_num_images_backpropped)
+        num_images_backpropped = train(args,
+                                       net,
+                                       trainloader,
+                                       device,
+                                       optimizer,
+                                       epoch,
+                                       total_num_images_backpropped,
+                                       images_hist)
         total_num_images_backpropped += num_images_backpropped
+        with open(args.pickle_file, "wb") as handle:
+            pickle.dump(images_hist, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 if __name__ == '__main__':
     main()
