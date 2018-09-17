@@ -1,7 +1,6 @@
 '''Train CIFAR10 with PyTorch.'''
 from __future__ import print_function
 
-import copy
 import pickle
 import numpy as np
 import time
@@ -45,9 +44,11 @@ def train(args,
     loss_reduction = None
 
     for batch_idx, (data, targets, image_id) in enumerate(trainloader):
+
         data, targets = data.to(device), targets.to(device)
 
         if args.selective_backprop:
+
             output = net(data)
             loss = nn.CrossEntropyLoss(reduce=True)(output, targets)
             losses_pool.append(loss.item())
@@ -114,7 +115,7 @@ def train(args,
 
     return num_backprop
 
-def test(args, net, testloader, device, epoch, total_num_images_backpropped, log=True):
+def test(args, net, testloader, device, epoch, total_num_images_backpropped):
     net.eval()
     test_loss = 0
     correct = 0
@@ -131,13 +132,12 @@ def test(args, net, testloader, device, epoch, total_num_images_backpropped, log
             correct += predicted.eq(targets).sum().item()
 
     test_loss /= len(testloader.dataset)
-    if log:
-        print('test_debug,{},{},{:.6f},{:.6f},{}'.format(
-                    epoch,
-                    total_num_images_backpropped,
-                    test_loss,
-                    100.*correct/total,
-                    time.time()))
+    print('test_debug,{},{},{:.6f},{:.6f},{}'.format(
+                epoch,
+                total_num_images_backpropped,
+                test_loss,
+                100.*correct/total,
+                time.time()))
 
     # Save checkpoint.
     '''
@@ -155,75 +155,6 @@ def test(args, net, testloader, device, epoch, total_num_images_backpropped, log
         torch.save(state, './checkpoint/ckpt.t7')
         best_acc = acc
     '''
-
-    return test_loss, 100.*correct/total
-
-
-def log_multiverse(args,
-                   device,
-                   epoch,
-                   net,
-                   trainloader,
-                   testloader,
-                   prev_test_loss,
-                   prev_test_acc,
-                   total_num_images_backpropped):
-
-    print("In log_multiverse with test loss {}, test acc {}".format(prev_test_loss,
-                                                                    prev_test_acc))
-
-    losses_pool = []
-    data_pool = []
-    targets_pool = []
-    ids_pool = []
-
-    start = time.time()
-
-    for batch_idx, (data, targets, image_id) in enumerate(trainloader):
-        data, targets = data.to(device), targets.to(device)
-        output = net(data)
-        loss = nn.CrossEntropyLoss(reduce=True)(output, targets)
-        losses_pool.append(loss.item())
-        data_pool.append(data)
-        targets_pool.append(targets)
-        ids_pool.append(image_id.item())
-
-    # Top-k
-
-    indices = np.array(losses_pool).argsort()[-args.top_k:]
-    chosen_data = [data_pool[i] for i in indices]
-    chosen_targets = [targets_pool[i] for i in indices]
-    chosen_ids = [ids_pool[i] for i in indices]
-
-    data_batch = torch.stack(chosen_data, dim=1)[0]
-    targets_batch = torch.cat(chosen_targets)
-    output_batch = net(data_batch) # redundant
-
-    loss = nn.CrossEntropyLoss()(output, targets)
-    new_net = copy.deepcopy(net)
-    optimizer = optim.SGD(new_net.parameters(), lr=args.lr, momentum=0.9, weight_decay=args.decay)
-    optimizer.zero_grad()
-    loss.backward()
-    optimizer.step()
-
-    test_loss, test_acc = test(args, new_net, testloader, device, epoch, total_num_images_backpropped, log=False)
-
-    loss_delta = test_loss - prev_test_loss
-    acc_delta = prev_test_acc - test_acc
-
-    print(prev_test_acc, test_acc, acc_delta)
-    print(prev_test_loss, test_loss, loss_delta)
-
-    print("Multiverse: test loss {}, loss delta {}, test acc {}, acc delta {}".format(test_loss,
-                                                                                      loss_delta,
-                                                                                      test_acc,
-                                                                                      acc_delta))
-
-    # Bottom-k
-
-    time_elapsed = time.time() - start
-
-    print("{} sec elapsed for {} multiverses".format(time_elapsed, batch_idx + 1))
 
 
 def main():
@@ -325,20 +256,9 @@ def main():
     total_num_images_backpropped = 0
 
     for epoch in range(start_epoch, start_epoch+500):
-        for partition_idx, partition in enumerate(partitions):
+        for partition in partitions:
             trainloader = torch.utils.data.DataLoader(partition, batch_size=args.batch_size, shuffle=True, num_workers=2)
-            test_loss, test_acc = test(args, net, testloader, device, epoch, total_num_images_backpropped)
-
-            if partition_idx % 10 == 0:
-                log_multiverse(args,
-                               device,
-                               epoch,
-                               net,
-                               trainloader,
-                               testloader,
-                               test_loss,
-                               test_acc,
-                               total_num_images_backpropped)
+            test(args, net, testloader, device, epoch, total_num_images_backpropped)
 
             # Stop training rightaway if we've exceeded maximum number of epochs
             if args.max_num_backprops:
