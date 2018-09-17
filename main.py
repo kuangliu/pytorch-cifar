@@ -68,8 +68,6 @@ def train(args,
                 output_batch = net(data_batch) # redundant
 
                 for chosen_id in chosen_ids:
-                    if chosen_id not in images_hist.keys():
-                        images_hist[chosen_id] = 0
                     images_hist[chosen_id] += 1
 
                 # Note: This will only work for batch size of 1
@@ -101,7 +99,7 @@ def train(args,
         total += targets.size(0)
         correct += predicted.eq(targets).sum().item()
 
-        if batch_idx % 10 == 0 and loss_reduction is not None:
+        if batch_idx % args.log_interval == 0 and loss_reduction is not None:
             print('train_debug,{},{},{:.6f},{:.6f},{},{:.6f}'.format(
                         epoch,
                         total_num_images_backpropped + num_backprop,
@@ -109,6 +107,12 @@ def train(args,
                         train_loss / float(num_backprop),
                         time.time(),
                         100.*correct/total))
+
+        # Stop epoch rightaway if we've exceeded maximum number of epochs
+        if args.max_num_backprops:
+            if args.max_num_backprops <= total_num_images_backpropped + num_backprop:
+                return num_backprop
+
     return num_backprop
 
 def test(args, net, testloader, device, epoch, total_num_images_backpropped):
@@ -175,6 +179,8 @@ def main():
                         help='which network architecture to train')
     parser.add_argument('--pickle-file', default="/tmp/image_id_hist.pickle",
                         help='image id histogram pickle')
+    parser.add_argument('--max-num-backprops', type=int, default=None, metavar='N',
+                        help='how many images to backprop total')
 
     args = parser.parse_args()
 
@@ -195,13 +201,6 @@ def main():
         transforms.ToTensor(),
         transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
     ])
-
-    trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=False, transform=transform_train)
-    trainset = [t + (i,) for i, t in enumerate(trainset)]
-    trainloader = torch.utils.data.DataLoader(trainset, batch_size=args.batch_size, shuffle=True, num_workers=2)
-
-    testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=False, transform=transform_test)
-    testloader = torch.utils.data.DataLoader(testset, batch_size=args.test_batch_size, shuffle=False, num_workers=2)
 
     classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
@@ -235,32 +234,50 @@ def main():
         net = torch.nn.DataParallel(net)
         cudnn.benchmark = True
 
-    if args.resume:
-        # Load checkpoint.
-        print('==> Resuming from checkpoint..')
-        assert os.path.isdir('checkpoint'), 'Error: no checkpoint directory found!'
-        checkpoint = torch.load('./checkpoint/ckpt.t7')
-        net.load_state_dict(checkpoint['net'])
-        best_acc = checkpoint['acc']
-        start_epoch = checkpoint['epoch']
-
     optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=args.decay)
 
-    images_hist = {}
+    testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=False, transform=transform_test)
+    testloader = torch.utils.data.DataLoader(testset, batch_size=args.test_batch_size, shuffle=False, num_workers=2)
+
+    ## Selective backprop setup ##
+
+    assert(args.pool_size >= args.top_k)
+
+    # Partition training set to get more test datapoints
+    trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=False, transform=transform_train)
+    trainset = [t + (i,) for i, t in enumerate(trainset)]
+    chunk_size = args.pool_size * 10
+    partitions = [trainset[i:i + chunk_size] for i in xrange(0, len(trainset), chunk_size)]
+
+    # Store frequency of each image getting backpropped
+    keys = range(len(trainset))
+    images_hist = dict(zip(keys, [0] * len(keys)))
+
     total_num_images_backpropped = 0
+
     for epoch in range(start_epoch, start_epoch+500):
-        test(args, net, testloader, device, epoch, total_num_images_backpropped)
-        num_images_backpropped = train(args,
-                                       net,
-                                       trainloader,
-                                       device,
-                                       optimizer,
-                                       epoch,
-                                       total_num_images_backpropped,
-                                       images_hist)
-        total_num_images_backpropped += num_images_backpropped
-        with open(args.pickle_file, "wb") as handle:
-            pickle.dump(images_hist, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        for partition in partitions:
+            trainloader = torch.utils.data.DataLoader(partition, batch_size=args.batch_size, shuffle=True, num_workers=2)
+            test(args, net, testloader, device, epoch, total_num_images_backpropped)
+
+            # Stop training rightaway if we've exceeded maximum number of epochs
+            if args.max_num_backprops:
+                if args.max_num_backprops <= total_num_images_backpropped:
+                    return
+
+            num_images_backpropped = train(args,
+                                           net,
+                                           trainloader,
+                                           device,
+                                           optimizer,
+                                           epoch,
+                                           total_num_images_backpropped,
+                                           images_hist)
+            total_num_images_backpropped += num_images_backpropped
+
+            with open(args.pickle_file, "wb") as handle:
+                pickle.dump(images_hist, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
 
 if __name__ == '__main__':
     main()
