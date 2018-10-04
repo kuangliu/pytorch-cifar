@@ -1,7 +1,7 @@
 '''Train CIFAR10 with PyTorch.'''
 from __future__ import print_function
 
-import pickle
+import cPickle as pickle
 import pprint as pp
 import numpy as np
 import time
@@ -20,6 +20,55 @@ import argparse
 from models import *
 from utils import progress_bar
 
+class State:
+
+    def __init__(self):
+        self.num_images_backpropped = 0
+        self.num_images_skipped = 0
+        self.sum_sp = 0
+
+    @property
+    def num_images_seen(self):
+        return self.num_images_backpropped + self.num_images_skipped
+
+
+    @property
+    def average_sp(self):
+        if self.num_images_seen == 0:
+            return 1
+        return self.sum_sp / float(self.num_images_seen)
+
+
+def get_stat(data):
+    # TODO: Add num backpropped
+    stat = {}
+    stat["average"] = np.average(data)
+    stat["p50"] = np.percentile(data, 50)
+    stat["p75"] = np.percentile(data, 75)
+    stat["p90"] = np.percentile(data, 90)
+    stat["max"] = max(data)
+    stat["min"] = min(data)
+    return stat
+
+
+def update_batch_stats(batch_stats, num_backpropped, num_skipped,
+                       pool_losses=None, chosen_losses=None, pool_sps=None, chosen_sps=None):
+    '''
+    batch_stats = [{'chosen_losses': {stat},
+                   'pool_losses': {stat}}]
+    '''
+    snapshot = {}
+    snapshot["num_backpropped"] = num_backpropped
+    snapshot["num_skipped"] = num_skipped
+    if chosen_losses:
+        snapshot["chosen_losses"] = get_stat(chosen_losses)
+    if pool_losses:
+        snapshot["pool_losses"] = get_stat(pool_losses)
+    if chosen_sps:
+        snapshot["chosen_sps"] = get_stat(chosen_sps)
+    if pool_sps:
+        snapshot["pool_sps"] = get_stat(pool_sps)
+    batch_stats.append(snapshot)
 
 def get_stat(data):
     # TODO: Add num backpropped
@@ -59,8 +108,7 @@ def train_topk(args,
                device,
                optimizer,
                epoch,
-               total_num_images_backpropped,
-               total_num_images_skipped,
+               state,
                images_hist,
                batch_stats = None):
 
@@ -98,7 +146,7 @@ def train_topk(args,
             chosen_targets = [targets_pool[i] for i in indices]
             chosen_ids = [ids_pool[i] for i in indices]
             chosen_losses = [losses_pool[i] for i in indices]
-            num_skipped += len(data_pool) - len(chosen_data)
+            state.num_images_skipped += len(data_pool) - len(chosen_data)
 
             data_batch = torch.stack(chosen_data, dim=1)[0]
             targets_batch = torch.cat(chosen_targets)
@@ -110,8 +158,8 @@ def train_topk(args,
             # Get stats for batches
             if batch_stats is not None:
                 update_batch_stats(batch_stats,
-                                   total_num_images_backpropped,
-                                   total_num_images_skipped,
+                                   state.num_images_backpropped,
+                                   state.num_images_skipped,
                                    pool_losses = losses_pool, 
                                    chosen_losses = chosen_losses,
                                    pool_sps = [],
@@ -125,6 +173,7 @@ def train_topk(args,
             optimizer.step()
             train_loss += loss_reduction.item()
             num_backprop += len(chosen_data)
+            state.num_images_backpropped += len(chosen_data)
 
             losses_pool = []
             data_pool = []
@@ -141,8 +190,8 @@ def train_topk(args,
         if batch_idx % args.log_interval == 0 and loss_reduction is not None:
             print('train_debug,{},{},{},{:.6f},{:.6f},{},{:.6f}'.format(
                         epoch,
-                        total_num_images_backpropped + num_backprop,
-                        total_num_images_skipped + num_skipped,
+                        state.num_images_backpropped,
+                        state.num_images_skipped,
                         loss_reduction.item(),
                         train_loss / float(num_backprop),
                         time.time(),
@@ -150,10 +199,80 @@ def train_topk(args,
 
         # Stop epoch rightaway if we've exceeded maximum number of epochs
         if args.max_num_backprops:
-            if args.max_num_backprops <= total_num_images_backpropped + num_backprop:
+            if args.max_num_backprops <= state.num_images_backpropped:
                 return num_backprop
 
-    return num_backprop, num_skipped
+    return
+
+# Training
+def train_baseline(args,
+               net,
+               trainloader,
+               device,
+               optimizer,
+               epoch,
+               state,
+               images_hist,
+               batch_stats = None):
+
+    print('\nEpoch: %d in train_baseline' % epoch)
+    net.train()
+    train_loss = 0
+    correct = 0
+    total = 0
+
+    losses_pool = []
+    num_backprop = 0
+
+    for batch_idx, (data, targets, image_id) in enumerate(trainloader):
+
+        data, targets = data.to(device), targets.to(device)
+
+        optimizer.zero_grad()
+        outputs = net(data)
+        loss = nn.CrossEntropyLoss()(outputs, targets)
+        loss.backward()
+        optimizer.step()
+
+        losses_pool.append(loss.item())
+        num_backprop += len(data)
+        state.num_images_backpropped += len(data)
+
+        for chosen_id in image_id:
+            images_hist[chosen_id.item()] += 1
+
+        # Get stats for batches
+        if batch_stats is not None:
+            update_batch_stats(batch_stats,
+                               state.num_images_backpropped,
+                               0,
+                               pool_losses = losses_pool, 
+                               chosen_losses = losses_pool,
+                               pool_sps = [],
+                               chosen_sps = [])
+
+        losses_pool = []
+
+        _, predicted = outputs.max(1)
+        total += targets.size(0)
+        correct += predicted.eq(targets).sum().item()
+
+        if batch_idx % args.log_interval == 0:
+            print('train_debug,{},{},{},{:.6f},{:.6f},{},{:.6f}'.format(
+                        epoch,
+                        state.num_images_backpropped,
+                        state.num_images_skipped,
+                        loss.item(),
+                        train_loss / float(num_backprop),
+                        time.time(),
+                        100.*correct/total))
+
+        # Stop epoch rightaway if we've exceeded maximum number of epochs
+        if args.max_num_backprops:
+            if args.max_num_backprops <= state.num_images_backpropped:
+                return num_backprop
+
+    return
 
 
 # Training
@@ -163,8 +282,7 @@ def train_sampling(args,
                    device,
                    optimizer,
                    epoch,
-                   total_num_images_backpropped,
-                   total_num_images_skipped,
+                   state,
                    images_hist,
                    batch_stats = None):
 
@@ -198,32 +316,48 @@ def train_sampling(args,
 
         # Prepare output for L2 distance
         softmax_output = nn.Softmax()(output)
-        print("Softmax: ", softmax_output)
+        #print("Softmax: ", softmax_output)
 
         # Prepare target for L2 distance
         target_vector = np.zeros(len(output.data[0]))
         target_vector[targets.item()] = 1
         target_tensor = torch.Tensor(target_vector)
-        print("Target: ", target_tensor)
+        #print("Target: ", target_tensor)
 
         l2_dist = torch.dist(target_tensor.to(device), softmax_output)
-        print("L2 Dist: ", l2_dist.item())
+        #print("L2 Dist: ", l2_dist.item())
 
         l2_dist *= l2_dist
-        print("L2 Dist Squared: ", l2_dist.item())
+        #print("L2 Dist Squared: ", l2_dist.item())
+
+        # map to range
+
+        old_max = .91
+        old_min = args.sampling_min
+        new_max = 1
+        new_min = args.sampling_min
+        old_range = (old_max - old_min)  
+        new_range = (new_max - new_min) 
+        l2_dist = (((l2_dist - old_min) * new_range) / old_range) + new_min
+        #print("Translated l2_dist: ", l2_dist)
 
         select_probs = torch.clamp(l2_dist, min=args.sampling_min, max=1)
-        print("Chosen Probs: ", select_probs.item())
+        #print("Chosen Probs: ", select_probs.item())
+
+        state.sum_sp += select_probs.item()
 
         draw = np.random.uniform(0, 1)
         if draw < select_probs.item():
-            # Do the backprop
-            loss_normalized = loss / select_probs.item()
+
+            loss_normalized = loss * state.average_sp
+            loss_normalized /= select_probs.item()
+
             optimizer.zero_grad()
             loss_normalized.backward()
             optimizer.step()
             train_loss += loss_normalized.item()
             num_backprop += 1
+            state.num_images_backpropped += 1
             images_hist[image_id.item()] += 1
 
             # Add to batch for logging purposes
@@ -234,7 +368,7 @@ def train_sampling(args,
             chosen_sps.append(select_probs.item())
 
         else:
-            num_skipped += 1
+            state.num_images_skipped += 1
             print("Skipping image with sp {}".format(select_probs))
 
         # Add to batch for logging purposes
@@ -251,8 +385,8 @@ def train_sampling(args,
         if batch_idx % args.log_interval == 0 and num_backprop > 0:
             print('train_debug,{},{},{},{:.6f},{:.6f},{},{:.6f}'.format(
                         epoch,
-                        total_num_images_backpropped + num_backprop,
-                        total_num_images_skipped + num_skipped,
+                        state.num_images_backpropped,
+                        state.num_images_skipped,
                         np.average(losses_pool),
                         train_loss / float(num_backprop),
                         time.time(),
@@ -261,8 +395,8 @@ def train_sampling(args,
             # Record stats for batch
             if batch_stats is not None:
                 update_batch_stats(batch_stats,
-                                   total_num_images_backpropped,
-                                   total_num_images_skipped,
+                                   state.num_images_backpropped,
+                                   state.num_images_skipped,
                                    pool_losses = losses_pool, 
                                    chosen_losses = chosen_losses,
                                    pool_sps = sps_pool,
@@ -282,18 +416,17 @@ def train_sampling(args,
 
         # Stop epoch rightaway if we've exceeded maximum number of epochs
         if args.max_num_backprops:
-            if args.max_num_backprops <= total_num_images_backpropped + num_backprop:
+            if args.max_num_backprops <=  + num_backprop:
                 return num_backprop
 
-    return num_backprop, num_skipped
+    return
 
 def test(args,
          net,
          testloader,
          device,
          epoch,
-         total_num_images_backpropped,
-         total_num_images_skipped):
+         state):
 
     net.eval()
     test_loss = 0
@@ -313,8 +446,8 @@ def test(args,
     test_loss /= len(testloader.dataset)
     print('test_debug,{},{},{},{:.6f},{:.6f},{}'.format(
                 epoch,
-                total_num_images_backpropped,
-                total_num_images_skipped,
+                state.num_images_backpropped,
+                state.num_images_skipped,
                 test_loss,
                 100.*correct/total,
                 time.time()))
@@ -420,6 +553,7 @@ def main():
         cudnn.benchmark = True
 
     optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=args.decay)
+    #optimizer = optim.Adam(net.parameters(), lr=args.lr, weight_decay=args.decay)
 
     testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=False, transform=transform_test)
     testloader = torch.utils.data.DataLoader(testset, batch_size=args.test_batch_size, shuffle=False, num_workers=2)
@@ -453,40 +587,38 @@ def main():
     batch_stats_pickle_file = os.path.join(batch_stats_pickle_dir,
                                            "{}_batch_stats.pickle".format(args.pickle_prefix))
 
-    total_num_images_backpropped = 0
-    total_num_images_skipped = 0
+    state = State()
 
     for epoch in range(start_epoch, start_epoch+500):
         for partition in partitions:
             trainloader = torch.utils.data.DataLoader(partition, batch_size=args.batch_size, shuffle=True, num_workers=2)
-            test(args, net, testloader, device, epoch, total_num_images_backpropped, total_num_images_skipped)
+            test(args, net, testloader, device, epoch, state)
 
             # Stop training rightaway if we've exceeded maximum number of epochs
             if args.max_num_backprops:
-                if args.max_num_backprops <= total_num_images_backpropped:
+                if args.max_num_backprops <= state.num_images_backpropped:
                     return
 
             if args.sb_strategy == "topk":
                 trainer = train_topk
             elif args.sb_strategy == "sampling":
                 trainer = train_sampling
+            elif args.sb_strategy == "baseline":
+                trainer = train_baseline
             else:
                 print("Unknown selective backprop strategy {}".format(args.sb_strategy))
                 exit()
 
-            num_images_backpropped, num_images_skipped = trainer(args,
+            trainer(args,
                                                                net,
                                                                trainloader,
                                                                device,
                                                                optimizer,
                                                                epoch,
-                                                               total_num_images_backpropped,
-                                                               total_num_images_skipped,
+                                                               state,
                                                                images_hist,
                                                                batch_stats=batch_stats)
 
-            total_num_images_backpropped += num_images_backpropped
-            total_num_images_skipped += num_images_skipped
 
             # Write out summary statistics
 
