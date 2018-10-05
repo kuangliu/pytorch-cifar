@@ -20,17 +20,88 @@ import argparse
 from models import *
 from utils import progress_bar
 
+
+def get_stat(data):
+    # TODO: Add num backpropped
+    stat = {}
+    stat["average"] = np.average(data)
+    stat["p50"] = np.percentile(data, 50)
+    stat["p75"] = np.percentile(data, 75)
+    stat["p90"] = np.percentile(data, 90)
+    stat["max"] = max(data)
+    stat["min"] = min(data)
+    return stat
+
 class State:
 
-    def __init__(self):
+    def __init__(self, num_images, pickle_dir, pickle_prefix):
         self.num_images_backpropped = 0
         self.num_images_skipped = 0
         self.sum_sp = 0
+        self.pickle_dir = pickle_dir
+        self.pickle_prefix = pickle_prefix
+
+        self.init_images_hist(num_images)
+        self.init_batch_stats()
+
+    def init_images_hist(self, num_images):
+        # Store frequency of each image getting backpropped
+        keys = range(num_images)
+        self.images_hist = dict(zip(keys, [0] * len(keys)))
+        image_id_pickle_dir = os.path.join(self.pickle_dir, "image_id_hist")
+        self.image_id_pickle_file = os.path.join(image_id_pickle_dir,
+                                                 "{}_images_hist.pickle".format(self.pickle_prefix))
+        # Make images hist pickle path
+        if not os.path.exists(image_id_pickle_dir):
+            os.mkdir(image_id_pickle_dir)
+
+    def init_batch_stats(self):
+        self.batch_stats = []
+
+        # Make batch stats pickle path
+        batch_stats_pickle_dir = os.path.join(self.pickle_dir, "batch_stats")
+        if not os.path.exists(batch_stats_pickle_dir):
+            os.mkdir(batch_stats_pickle_dir)
+        self.batch_stats_pickle_file = os.path.join(batch_stats_pickle_dir,
+                                                    "{}_batch_stats.pickle".format(self.pickle_prefix))
+
+    def update_images_hist(self, image_ids):
+        for chosen_id in image_ids:
+            self.images_hist[chosen_id] += 1
+
+    def update_batch_stats(self, pool_losses=None,
+                                 chosen_losses=None,
+                                 pool_sps=None,
+                                 chosen_sps=None):
+        '''
+        batch_stats = [{'chosen_losses': {stat},
+                       'pool_losses': {stat}}]
+        '''
+        snapshot = {}
+        snapshot["num_backpropped"] = self.num_images_backpropped
+        snapshot["num_skipped"] = self.num_images_skipped
+        if chosen_losses:
+            snapshot["chosen_losses"] = get_stat(chosen_losses)
+        if pool_losses:
+            snapshot["pool_losses"] = get_stat(pool_losses)
+        if chosen_sps:
+            snapshot["chosen_sps"] = get_stat(chosen_sps)
+        if pool_sps:
+            snapshot["pool_sps"] = get_stat(pool_sps)
+        self.batch_stats.append(snapshot)
+
+    def write_summaries(self):
+        with open(self.image_id_pickle_file, "wb") as handle:
+            print(self.image_id_pickle_file)
+            pickle.dump(self.images_hist, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+        with open(self.batch_stats_pickle_file, "wb") as handle:
+            print(self.batch_stats_pickle_file)
+            pickle.dump(self.batch_stats, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     @property
     def num_images_seen(self):
         return self.num_images_backpropped + self.num_images_skipped
-
 
     @property
     def average_sp(self):
@@ -39,68 +110,6 @@ class State:
         return self.sum_sp / float(self.num_images_seen)
 
 
-def get_stat(data):
-    # TODO: Add num backpropped
-    stat = {}
-    stat["average"] = np.average(data)
-    stat["p50"] = np.percentile(data, 50)
-    stat["p75"] = np.percentile(data, 75)
-    stat["p90"] = np.percentile(data, 90)
-    stat["max"] = max(data)
-    stat["min"] = min(data)
-    return stat
-
-
-def update_batch_stats(batch_stats, num_backpropped, num_skipped,
-                       pool_losses=None, chosen_losses=None, pool_sps=None, chosen_sps=None):
-    '''
-    batch_stats = [{'chosen_losses': {stat},
-                   'pool_losses': {stat}}]
-    '''
-    snapshot = {}
-    snapshot["num_backpropped"] = num_backpropped
-    snapshot["num_skipped"] = num_skipped
-    if chosen_losses:
-        snapshot["chosen_losses"] = get_stat(chosen_losses)
-    if pool_losses:
-        snapshot["pool_losses"] = get_stat(pool_losses)
-    if chosen_sps:
-        snapshot["chosen_sps"] = get_stat(chosen_sps)
-    if pool_sps:
-        snapshot["pool_sps"] = get_stat(pool_sps)
-    batch_stats.append(snapshot)
-
-def get_stat(data):
-    # TODO: Add num backpropped
-    stat = {}
-    stat["average"] = np.average(data)
-    stat["p50"] = np.percentile(data, 50)
-    stat["p75"] = np.percentile(data, 75)
-    stat["p90"] = np.percentile(data, 90)
-    stat["max"] = max(data)
-    stat["min"] = min(data)
-    return stat
-
-
-def update_batch_stats(batch_stats, num_backpropped, num_skipped,
-                       pool_losses=None, chosen_losses=None, pool_sps=None, chosen_sps=None):
-    '''
-    batch_stats = [{'chosen_losses': {stat},
-                   'pool_losses': {stat}}]
-    '''
-    snapshot = {}
-    snapshot["num_backpropped"] = num_backpropped
-    snapshot["num_skipped"] = num_skipped
-    if chosen_losses:
-        snapshot["chosen_losses"] = get_stat(chosen_losses)
-    if pool_losses:
-        snapshot["pool_losses"] = get_stat(pool_losses)
-    if chosen_sps:
-        snapshot["chosen_sps"] = get_stat(chosen_sps)
-    if pool_sps:
-        snapshot["pool_sps"] = get_stat(pool_sps)
-    batch_stats.append(snapshot)
-
 # Training
 def train_topk(args,
                net,
@@ -108,9 +117,7 @@ def train_topk(args,
                device,
                optimizer,
                epoch,
-               state,
-               images_hist,
-               batch_stats = None):
+               state):
 
     print('\nEpoch: %d in train_topk' % epoch)
     net.train()
@@ -152,18 +159,12 @@ def train_topk(args,
             targets_batch = torch.cat(chosen_targets)
             output_batch = net(data_batch) # redundant
 
-            for chosen_id in chosen_ids:
-                images_hist[chosen_id] += 1
-
-            # Get stats for batches
-            if batch_stats is not None:
-                update_batch_stats(batch_stats,
-                                   state.num_images_backpropped,
-                                   state.num_images_skipped,
-                                   pool_losses = losses_pool, 
-                                   chosen_losses = chosen_losses,
-                                   pool_sps = [],
-                                   chosen_sps = [])
+            # Update stats
+            state.update_images_hist(chosen_ids)
+            state.update_batch_stats(pool_losses = losses_pool, 
+                                     chosen_losses = chosen_losses,
+                                     pool_sps = [],
+                                     chosen_sps = [])
 
             # Note: This will only work for batch size of 1
             loss_reduction = nn.CrossEntropyLoss(reduce=True)(output_batch, targets_batch)
@@ -211,9 +212,7 @@ def train_baseline(args,
                device,
                optimizer,
                epoch,
-               state,
-               images_hist,
-               batch_stats = None):
+               state):
 
     print('\nEpoch: %d in train_baseline' % epoch)
     net.train()
@@ -238,18 +237,13 @@ def train_baseline(args,
         num_backprop += len(data)
         state.num_images_backpropped += len(data)
 
-        for chosen_id in image_id:
-            images_hist[chosen_id.item()] += 1
 
-        # Get stats for batches
-        if batch_stats is not None:
-            update_batch_stats(batch_stats,
-                               state.num_images_backpropped,
-                               0,
-                               pool_losses = losses_pool, 
-                               chosen_losses = losses_pool,
-                               pool_sps = [],
-                               chosen_sps = [])
+        # Update stats
+        state.update_images_hist([t.item() for t in image_id])
+        state.update_batch_stats(pool_losses = losses_pool, 
+                                 chosen_losses = losses_pool,
+                                 pool_sps = [],
+                                 chosen_sps = [])
 
         losses_pool = []
 
@@ -282,9 +276,7 @@ def train_sampling(args,
                    device,
                    optimizer,
                    epoch,
-                   state,
-                   images_hist,
-                   batch_stats = None):
+                   state):
 
     print('\nEpoch: %d in train_sampling' % epoch)
     net.train()
@@ -330,9 +322,8 @@ def train_sampling(args,
         l2_dist *= l2_dist
         #print("L2 Dist Squared: ", l2_dist.item())
 
-        # map to range
-
-        old_max = .91
+        # Translate l2_dist to new range
+        old_max = .81
         old_min = args.sampling_min
         new_max = 1
         new_min = args.sampling_min
@@ -341,6 +332,7 @@ def train_sampling(args,
         l2_dist = (((l2_dist - old_min) * new_range) / old_range) + new_min
         #print("Translated l2_dist: ", l2_dist)
 
+        # Clamp l2_dist into a probability
         select_probs = torch.clamp(l2_dist, min=args.sampling_min, max=1)
         #print("Chosen Probs: ", select_probs.item())
 
@@ -355,10 +347,12 @@ def train_sampling(args,
             optimizer.zero_grad()
             loss_normalized.backward()
             optimizer.step()
+
+            # Bookkeeping
             train_loss += loss_normalized.item()
             num_backprop += 1
             state.num_images_backpropped += 1
-            images_hist[image_id.item()] += 1
+            state.update_images_hist([image_id.item()])
 
             # Add to batch for logging purposes
             chosen_losses.append(loss.item())
@@ -393,14 +387,10 @@ def train_sampling(args,
                         100.*correct/total))
 
             # Record stats for batch
-            if batch_stats is not None:
-                update_batch_stats(batch_stats,
-                                   state.num_images_backpropped,
-                                   state.num_images_skipped,
-                                   pool_losses = losses_pool, 
-                                   chosen_losses = chosen_losses,
-                                   pool_sps = sps_pool,
-                                   chosen_sps = chosen_sps)
+            state.update_batch_stats(pool_losses = losses_pool, 
+                                     chosen_losses = chosen_losses,
+                                     pool_sps = sps_pool,
+                                     chosen_sps = chosen_sps)
 
             losses_pool = []
             data_pool = []
@@ -555,7 +545,7 @@ def main():
     optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=args.decay)
     #optimizer = optim.Adam(net.parameters(), lr=args.lr, weight_decay=args.decay)
 
-    testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=False, transform=transform_test)
+    testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform_test)
     testloader = torch.utils.data.DataLoader(testset, batch_size=args.test_batch_size, shuffle=False, num_workers=2)
 
     ## Selective backprop setup ##
@@ -563,31 +553,12 @@ def main():
     assert(args.pool_size >= args.top_k)
 
     # Partition training set to get more test datapoints
-    trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=False, transform=transform_train)
+    trainset = torchvision.datasets.CIFAR10(root='./data', train=False, download=False, transform=transform_train)
     trainset = [t + (i,) for i, t in enumerate(trainset)]
     chunk_size = args.pool_size * 10
     partitions = [trainset[i:i + chunk_size] for i in xrange(0, len(trainset), chunk_size)]
 
-    # Store frequency of each image getting backpropped
-    keys = range(len(trainset))
-    images_hist = dict(zip(keys, [0] * len(keys)))
-    batch_stats = []
-
-    # Make images hist pickle path
-    image_id_pickle_dir = os.path.join(args.pickle_dir, "image_id_hist")
-    if not os.path.exists(image_id_pickle_dir):
-        os.mkdir(image_id_pickle_dir)
-    image_id_pickle_file = os.path.join(image_id_pickle_dir,
-                                        "{}_images_hist.pickle".format(args.pickle_prefix))
-
-    # Make batch stats pickle path
-    batch_stats_pickle_dir = os.path.join(args.pickle_dir, "batch_stats")
-    if not os.path.exists(batch_stats_pickle_dir):
-        os.mkdir(batch_stats_pickle_dir)
-    batch_stats_pickle_file = os.path.join(batch_stats_pickle_dir,
-                                           "{}_batch_stats.pickle".format(args.pickle_prefix))
-
-    state = State()
+    state = State(len(trainset), args.pickle_dir, args.pickle_prefix)
 
     for epoch in range(start_epoch, start_epoch+500):
         for partition in partitions:
@@ -610,25 +581,16 @@ def main():
                 exit()
 
             trainer(args,
-                                                               net,
-                                                               trainloader,
-                                                               device,
-                                                               optimizer,
-                                                               epoch,
-                                                               state,
-                                                               images_hist,
-                                                               batch_stats=batch_stats)
-
+                    net,
+                    trainloader,
+                    device,
+                    optimizer,
+                    epoch,
+                    state)
 
             # Write out summary statistics
 
-            with open(image_id_pickle_file, "wb") as handle:
-                print(image_id_pickle_file)
-                pickle.dump(images_hist, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-            with open(batch_stats_pickle_file, "wb") as handle:
-                print(batch_stats_pickle_file)
-                pickle.dump(batch_stats, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            state.write_summaries()
 
 
 if __name__ == '__main__':
