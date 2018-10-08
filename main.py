@@ -37,6 +37,7 @@ class State:
     def __init__(self, num_images, pickle_dir, pickle_prefix):
         self.num_images_backpropped = 0
         self.num_images_skipped = 0
+        self.num_images_seen = 0
         self.sum_sp = 0
         self.pickle_dir = pickle_dir
         self.pickle_prefix = pickle_prefix
@@ -99,9 +100,9 @@ class State:
             print(self.batch_stats_pickle_file)
             pickle.dump(self.batch_stats, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-    @property
-    def num_images_seen(self):
-        return self.num_images_backpropped + self.num_images_skipped
+    def update_sum_sp(self, sp):
+        self.num_images_seen += 1
+        self.sum_sp += sp
 
     @property
     def average_sp(self):
@@ -280,7 +281,8 @@ def train_sampling(args,
 
     print('\nEpoch: %d in train_sampling' % epoch)
     net.train()
-    train_loss = 0
+    cumulative_loss = 0
+    cumulative_selected_loss = 0
     correct = 0
     total = 0
 
@@ -289,90 +291,128 @@ def train_sampling(args,
     targets_pool = []
     ids_pool = []
     sps_pool = []
+
     chosen_data = []
     chosen_losses = []
     chosen_targets = []
     chosen_ids = []
     chosen_sps = []
+
     num_backprop = 0
     num_skipped = 0
-    select_probs = -1
-    loss_reduction = None
 
-    for batch_idx, (data, targets, image_id) in enumerate(trainloader):
+    select_probs = -1
+
+    for batch_idx, (data, targets, image_ids) in enumerate(trainloader):
 
         data, targets = data.to(device), targets.to(device)
 
-        output = net(data)
-        loss = nn.CrossEntropyLoss(reduce=True)(output, targets)
+        outputs = net(data)
+        losses = nn.CrossEntropyLoss(reduce=False)(outputs, targets)
 
         # Prepare output for L2 distance
-        softmax_output = nn.Softmax()(output)
-        #print("Softmax: ", softmax_output)
+        softmax_outputs = nn.Softmax()(outputs)
 
-        # Prepare target for L2 distance
-        target_vector = np.zeros(len(output.data[0]))
-        target_vector[targets.item()] = 1
-        target_tensor = torch.Tensor(target_vector)
-        #print("Target: ", target_tensor)
+        for loss, softmax_output, target, datum, image_id in zip(losses, softmax_outputs, targets, data, image_ids):
 
-        l2_dist = torch.dist(target_tensor.to(device), softmax_output)
-        #print("L2 Dist: ", l2_dist.item())
+            #print("Softmax Output: ", softmax_output.data)
 
-        l2_dist *= l2_dist
-        #print("L2 Dist Squared: ", l2_dist.item())
+            # Prepare target for L2 distance
+            target_vector = np.zeros(len(softmax_output.data))
+            target_vector[target.item()] = 1
+            target_tensor = torch.Tensor(target_vector)
+            #print("Target: ", target_tensor)
 
-        # Translate l2_dist to new range
-        old_max = .81
-        old_min = args.sampling_min
-        new_max = 1
-        new_min = args.sampling_min
-        old_range = (old_max - old_min)  
-        new_range = (new_max - new_min) 
-        l2_dist = (((l2_dist - old_min) * new_range) / old_range) + new_min
-        #print("Translated l2_dist: ", l2_dist)
+            l2_dist = torch.dist(target_tensor.to(device), softmax_output)
+            #print("L2 Dist: ", l2_dist.item())
 
-        # Clamp l2_dist into a probability
-        select_probs = torch.clamp(l2_dist, min=args.sampling_min, max=1)
-        #print("Chosen Probs: ", select_probs.item())
+            l2_dist *= l2_dist
+            #print("L2 Dist Squared: ", l2_dist.item())
 
-        state.sum_sp += select_probs.item()
+            # Translate l2_dist to new range
+            old_max = .81
+            old_min = args.sampling_min
+            new_max = 1
+            new_min = args.sampling_min
+            old_range = (old_max - old_min)  
+            new_range = (new_max - new_min) 
+            l2_dist = (((l2_dist - old_min) * new_range) / old_range) + new_min
+            #print("Translated l2_dist: ", l2_dist)
 
-        draw = np.random.uniform(0, 1)
-        if draw < select_probs.item():
+            # Clamp l2_dist into a probability
+            select_probs = torch.clamp(l2_dist, min=args.sampling_min, max=1)
+            #print("Chosen Probs: ", select_probs.item())
 
-            loss_normalized = loss * state.average_sp
-            loss_normalized /= select_probs.item()
+            cumulative_loss += loss.item()
+            losses_pool.append(loss.item())
+            sps_pool.append(select_probs.item())
+            state.update_sum_sp(select_probs.item())
 
-            optimizer.zero_grad()
-            loss_normalized.backward()
-            optimizer.step()
+            draw = np.random.uniform(0, 1)
 
-            # Bookkeeping
-            train_loss += loss_normalized.item()
-            num_backprop += 1
-            state.num_images_backpropped += 1
-            state.update_images_hist([image_id.item()])
+            if draw < select_probs.item():
 
-            # Add to batch for logging purposes
-            chosen_losses.append(loss.item())
-            chosen_data.append(data)
-            chosen_targets.append(targets)
-            chosen_ids.append(image_id.item())
-            chosen_sps.append(select_probs.item())
+                # Add to chosen data
+                chosen_losses.append(loss.item())
+                chosen_data.append(datum)
+                chosen_targets.append(target)
+                chosen_ids.append(image_id.item())
+                chosen_sps.append(select_probs.item())
 
-        else:
-            state.num_images_skipped += 1
-            print("Skipping image with sp {}".format(select_probs))
+                if len(chosen_losses) == args.batch_size:
 
-        # Add to batch for logging purposes
-        losses_pool.append(loss.item())
-        data_pool.append(data.data[0])
-        targets_pool.append(targets)
-        ids_pool.append(image_id.item())
-        sps_pool.append(select_probs.item())
+                    # Make new batch of selected examples
+                    data_batch = torch.stack(chosen_data)
+                    targets_batch = torch.stack(chosen_targets)
 
-        _, predicted = output.max(1)
+                    # Run forward pass
+                    output_batch = net(data_batch) # redundant
+                    loss_batch = nn.CrossEntropyLoss(reduce=False)(output_batch, targets_batch)
+
+                    # Scale each loss by image-specific select probs
+                    chosen_sps_tensor = torch.tensor(chosen_sps, dtype=torch.float)
+                    loss_batch = torch.mul(loss_batch, chosen_sps_tensor.to(device))
+
+                    # Reduce loss
+                    loss_batch = loss_batch.mean()
+
+                    # Scale loss by average select probs
+                    loss_batch.data *= state.average_sp
+
+                    optimizer.zero_grad()
+                    loss_batch.backward()
+                    optimizer.step()
+
+                    # Bookkeeping
+                    cumulative_selected_loss += loss_batch.item()
+                    num_backprop += args.batch_size
+                    state.num_images_backpropped += args.batch_size
+                    state.update_images_hist(chosen_ids)
+                    state.update_batch_stats(pool_losses = losses_pool, 
+                                             chosen_losses = chosen_losses,
+                                             pool_sps = sps_pool,
+                                             chosen_sps = chosen_sps)
+
+                    # Reset  pools
+                    losses_pool = []
+                    sps_pool = []
+                    chosen_data = []
+                    chosen_losses = []
+                    chosen_targets = []
+                    chosen_ids = []
+                    chosen_sps = []
+
+            else:
+                state.num_images_skipped += 1
+                num_skipped += 1
+                print("Skipping image with sp {}".format(select_probs))
+
+            data_pool.append(data.data[0])
+            targets_pool.append(targets)
+            ids_pool.append(image_id.item())
+            sps_pool.append(select_probs.item())
+
+        _, predicted = outputs.max(1)
         total += targets.size(0)
         correct += predicted.eq(targets).sum().item()
 
@@ -381,28 +421,10 @@ def train_sampling(args,
                         epoch,
                         state.num_images_backpropped,
                         state.num_images_skipped,
-                        np.average(losses_pool),
-                        train_loss / float(num_backprop),
+                        cumulative_loss / float(num_backprop + num_skipped),
+                        cumulative_selected_loss / float(num_backprop),
                         time.time(),
                         100.*correct/total))
-
-            # Record stats for batch
-            state.update_batch_stats(pool_losses = losses_pool, 
-                                     chosen_losses = chosen_losses,
-                                     pool_sps = sps_pool,
-                                     chosen_sps = chosen_sps)
-
-            losses_pool = []
-            data_pool = []
-            targets_pool = []
-            ids_pool = []
-            sps_pool = []
-
-            chosen_data = []
-            chosen_losses = []
-            chosen_targets = []
-            chosen_ids = []
-            chosen_sps = []
 
         # Stop epoch rightaway if we've exceeded maximum number of epochs
         if args.max_num_backprops:
@@ -545,7 +567,7 @@ def main():
     optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=args.decay)
     #optimizer = optim.Adam(net.parameters(), lr=args.lr, weight_decay=args.decay)
 
-    testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform_test)
+    testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=False, transform=transform_test)
     testloader = torch.utils.data.DataLoader(testset, batch_size=args.test_batch_size, shuffle=False, num_workers=2)
 
     ## Selective backprop setup ##
@@ -553,9 +575,9 @@ def main():
     assert(args.pool_size >= args.top_k)
 
     # Partition training set to get more test datapoints
-    trainset = torchvision.datasets.CIFAR10(root='./data', train=False, download=False, transform=transform_train)
+    trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=False, transform=transform_train)
     trainset = [t + (i,) for i, t in enumerate(trainset)]
-    chunk_size = args.pool_size * 10
+    chunk_size = args.pool_size * 100
     partitions = [trainset[i:i + chunk_size] for i in xrange(0, len(trainset), chunk_size)]
 
     state = State(len(trainset), args.pickle_dir, args.pickle_prefix)
@@ -589,8 +611,7 @@ def main():
                     state)
 
             # Write out summary statistics
-
-            state.write_summaries()
+            # state.write_summaries()
 
 
 if __name__ == '__main__':
