@@ -336,7 +336,7 @@ def train_sampling(args,
             new_min = args.sampling_min
             old_range = (old_max - old_min)  
             new_range = (new_max - new_min) 
-            # l2_dist = (((l2_dist - old_min) * new_range) / old_range) + new_min
+            l2_dist = (((l2_dist - old_min) * new_range) / old_range) + new_min
             #print("Translated l2_dist: ", l2_dist)
 
             # Clamp l2_dist into a probability
