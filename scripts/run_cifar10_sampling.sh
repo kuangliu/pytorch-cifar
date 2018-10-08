@@ -1,12 +1,15 @@
 set -x
 
-EXP_NAME=$1
-NET=$2
-BATCH_SIZE=$3
-LR=$4
-DECAY=$5
-MAX_NUM_BACKPROPS=$6
-SAMPLING_MIN=$7
+EXP_PREFIX=$1
+SAMPLING_STRATEGY=$2
+NET=$3
+BATCH_SIZE=$4
+LR=$5
+DECAY=$6
+MAX_NUM_BACKPROPS=$7
+SAMPLING_MIN=$8
+
+EXP_NAME=$EXP_PREFIX"_"$SAMPLING_STRATEGY
 
 mkdir "/proj/BigLearning/ahjiang/output/cifar10/"
 OUTPUT_DIR="/proj/BigLearning/ahjiang/output/cifar10/"$EXP_NAME
@@ -30,6 +33,7 @@ do
     --max-num-backprops=$MAX_NUM_BACKPROPS \
     --pickle-dir=$PICKLE_DIR \
     --pickle-prefix=$PICKLE_PREFIX \
-    --sampling-min=$SAMPLING_MIN\
+    --sampling-min=$SAMPLING_MIN \
+    --sampling-strategy=$SAMPLING_STRATEGY \
     --lr $LR &> $OUTPUT_DIR/$OUTPUT_FILE
 done

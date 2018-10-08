@@ -337,8 +337,10 @@ def train_sampling(args,
             new_min = args.sampling_min
             old_range = (old_max - old_min)  
             new_range = (new_max - new_min) 
-            l2_dist = (((l2_dist - old_min) * new_range) / old_range) + new_min
-            #print("Translated l2_dist: ", l2_dist)
+            if args.sampling_strategy in ["translate", "recenter"]:
+                print("In translation")
+                l2_dist = (((l2_dist - old_min) * new_range) / old_range) + new_min
+                #print("Translated l2_dist: ", l2_dist)
 
             # Clamp l2_dist into a probability
             select_probs = torch.clamp(l2_dist, min=args.sampling_min, max=1)
@@ -378,7 +380,9 @@ def train_sampling(args,
                     loss_batch = loss_batch.mean()
 
                     # Scale loss by average select probs
-                    loss_batch.data *= state.average_sp
+                    if args.sampling_strategy in ["recenter"]:
+                        print("In recentering")
+                        loss_batch.data *= state.average_sp
 
                     optimizer.zero_grad()
                     loss_batch.backward()
@@ -502,18 +506,25 @@ def main():
 
     parser.add_argument('--sb-strategy', default="topk", metavar='N',
                         help='Selective backprop strategy among {topk, sampling}')
-    parser.add_argument('--sampling-min', type=float, default=0.05,
-                        help='Minimum sampling rate for sampling strategy')
-    parser.add_argument('--top-k', type=int, default=8, metavar='N',
-                        help='how many images to backprop per batch')
-    parser.add_argument('--pool-size', type=int, default=16, metavar='N',
-                        help='how many images to backprop per batch')
+    parser.add_argument('--sb-start-epoch', type=int, default=0,
+                        help='epoch to start selective backprop')
     parser.add_argument('--pickle-dir', default="/tmp/",
                         help='directory for pickles')
     parser.add_argument('--pickle-prefix', default="stats",
                         help='file prefix for pickles')
     parser.add_argument('--max-num-backprops', type=int, default=None, metavar='N',
                         help='how many images to backprop total')
+
+    parser.add_argument('--sampling-strategy', default="recenter", metavar='N',
+                        help='Selective backprop sampling strategy among {recenter, translate, square}')
+    parser.add_argument('--sampling-min', type=float, default=0.05,
+                        help='Minimum sampling rate for sampling strategy')
+
+    parser.add_argument('--top-k', type=int, default=8, metavar='N',
+                        help='how many images to backprop per batch')
+    parser.add_argument('--pool-size', type=int, default=16, metavar='N',
+                        help='how many images to backprop per batch')
+
 
     args = parser.parse_args()
 
@@ -595,11 +606,11 @@ def main():
                 if args.max_num_backprops <= state.num_images_backpropped:
                     return
 
-            if args.sb_strategy == "topk":
+            if args.sb_strategy == "topk" and epoch >= args.sb_start_epoch:
                 trainer = train_topk
-            elif args.sb_strategy == "sampling":
+            elif args.sb_strategy == "sampling" and epoch >= args.sb_start_epoch:
                 trainer = train_sampling
-            elif args.sb_strategy == "baseline":
+            elif args.sb_strategy == "baseline" or epoch < args.sb_start_epoch:
                 trainer = train_baseline
             else:
                 print("Unknown selective backprop strategy {}".format(args.sb_strategy))
