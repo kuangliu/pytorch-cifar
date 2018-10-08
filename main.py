@@ -377,7 +377,7 @@ def train_sampling(args,
                     loss_batch = loss_batch.mean()
 
                     # Scale loss by average select probs
-                    # loss_batch.data *= state.average_sp
+                    loss_batch.data *= state.average_sp
 
                     optimizer.zero_grad()
                     loss_batch.backward()
