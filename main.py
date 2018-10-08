@@ -96,9 +96,9 @@ class State:
             print(self.image_id_pickle_file)
             pickle.dump(self.images_hist, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-        with open(self.batch_stats_pickle_file, "wb") as handle:
-            print(self.batch_stats_pickle_file)
-            pickle.dump(self.batch_stats, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        # with open(self.batch_stats_pickle_file, "wb") as handle:
+        #     print(self.batch_stats_pickle_file)
+        #     pickle.dump(self.batch_stats, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     def update_sum_sp(self, sp):
         self.num_images_seen += 1
@@ -611,7 +611,7 @@ def main():
                     state)
 
             # Write out summary statistics
-            # state.write_summaries()
+            state.write_summaries()
 
 
 if __name__ == '__main__':
