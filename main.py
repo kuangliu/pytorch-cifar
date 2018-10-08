@@ -20,6 +20,7 @@ import argparse
 from models import *
 from utils import progress_bar
 
+best_acc = 0
 
 def get_stat(data):
     # TODO: Add num backpropped
@@ -464,22 +465,24 @@ def test(args,
                 100.*correct/total,
                 time.time()))
 
+
     # Save checkpoint.
-    '''
     global best_acc
     acc = 100.*correct/total
     if acc > best_acc:
         print('Saving..')
-        state = {
+        net_state = {
             'net': net.state_dict(),
             'acc': acc,
             'epoch': epoch,
         }
-        if not os.path.isdir('checkpoint'):
-            os.mkdir('checkpoint')
-        torch.save(state, './checkpoint/ckpt.t7')
+        checkpoint_dir = os.path.join(args.pickle_dir, "checkpoint")
+        if not os.path.isdir(checkpoint_dir):
+            os.mkdir(checkpoint_dir)
+        checkpoint_file = os.path.join(checkpoint_dir, args.pickle_prefix + "_ckpt.t7")
+        print("Saving checkpoint at {}".format(checkpoint_file))
+        torch.save(net_state, checkpoint_file)
         best_acc = acc
-    '''
 
 
 def main():
