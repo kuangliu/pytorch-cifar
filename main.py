@@ -338,7 +338,6 @@ def train_sampling(args,
             old_range = (old_max - old_min)  
             new_range = (new_max - new_min) 
             if args.sampling_strategy in ["translate", "recenter"]:
-                print("In translation")
                 l2_dist = (((l2_dist - old_min) * new_range) / old_range) + new_min
                 #print("Translated l2_dist: ", l2_dist)
 
@@ -381,7 +380,6 @@ def train_sampling(args,
 
                     # Scale loss by average select probs
                     if args.sampling_strategy in ["recenter"]:
-                        print("In recentering")
                         loss_batch.data *= state.average_sp
 
                     optimizer.zero_grad()
@@ -577,6 +575,18 @@ def main():
     if device == 'cuda':
         net = torch.nn.DataParallel(net)
         cudnn.benchmark = True
+
+    if args.resume:
+        # Load checkpoint.
+        print('==> Resuming from checkpoint..')
+        checkpoint_dir = os.path.join(args.pickle_dir, "checkpoint")
+        checkpoint_file = os.path.join(checkpoint_dir, args.pickle_prefix + "_ckpt.t7")
+        assert os.path.isdir(checkpoint_dir), 'Error: no checkpoint directory found!'
+        print("Loading checkpoint at {}".format(checkpoint_file))
+        checkpoint = torch.load(checkpoint_file)
+        net.load_state_dict(checkpoint['net'])
+        best_acc = checkpoint['acc']
+        start_epoch = checkpoint['epoch']
 
     optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=args.decay)
     #optimizer = optim.Adam(net.parameters(), lr=args.lr, weight_decay=args.decay)
