@@ -45,6 +45,7 @@ class State:
 
         self.init_images_hist(num_images)
         self.init_batch_stats()
+        self.init_target_confidences()
 
     def init_images_hist(self, num_images):
         # Store frequency of each image getting backpropped
@@ -66,6 +67,17 @@ class State:
             os.mkdir(batch_stats_pickle_dir)
         self.batch_stats_pickle_file = os.path.join(batch_stats_pickle_dir,
                                                     "{}_batch_stats.pickle".format(self.pickle_prefix))
+
+    def init_target_confidences(self):
+        self.target_confidences = {}
+
+        target_confidences_pickle_dir = os.path.join(self.pickle_dir, "target_confidences")
+        self.target_confidences_pickle_file = os.path.join(target_confidences_pickle_dir,
+                                                           "{}_target_confidences.pickle".format(self.pickle_prefix))
+
+        # Make images hist pickle path
+        if not os.path.exists(target_confidences_pickle_dir):
+            os.mkdir(target_confidences_pickle_dir)
 
     def update_images_hist(self, image_ids):
         for chosen_id in image_ids:
@@ -92,10 +104,20 @@ class State:
             snapshot["pool_sps"] = get_stat(pool_sps)
         self.batch_stats.append(snapshot)
 
+    def update_target_confidences(self, epoch, confidences):
+        if epoch not in self.target_confidences.keys():
+            self.target_confidences[epoch] = {"confidences": []}
+        self.target_confidences[epoch]["confidences"] += confidences
+        self.target_confidences[epoch]["num_backpropped"] = self.num_images_backpropped
+
     def write_summaries(self):
         with open(self.image_id_pickle_file, "wb") as handle:
             print(self.image_id_pickle_file)
             pickle.dump(self.images_hist, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+        with open(self.target_confidences_pickle_file, "wb") as handle:
+            print(self.target_confidences_pickle_file)
+            pickle.dump(self.target_confidences, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
         # with open(self.batch_stats_pickle_file, "wb") as handle:
         #     print(self.batch_stats_pickle_file)
@@ -458,6 +480,12 @@ def test(args,
             total += targets.size(0)
             correct += predicted.eq(targets).sum().item()
 
+            softmax_outputs = nn.Softmax()(outputs)
+            targets_array = targets.cpu().numpy()
+            outputs_array = softmax_outputs.cpu().numpy()
+            confidences = [o[t] for t, o in zip(targets_array, outputs_array)]
+            state.update_target_confidences(epoch, confidences[:10])
+
     test_loss /= len(testloader.dataset)
     print('test_debug,{},{},{},{:.6f},{:.6f},{}'.format(
                 epoch,
@@ -466,7 +494,6 @@ def test(args,
                 test_loss,
                 100.*correct/total,
                 time.time()))
-
 
     # Save checkpoint.
     global best_acc
@@ -634,8 +661,8 @@ def main():
                     epoch,
                     state)
 
-            # Write out summary statistics
-            state.write_summaries()
+        # Write out summary statistics
+        state.write_summaries()
 
 
 if __name__ == '__main__':
