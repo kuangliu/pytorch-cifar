@@ -508,6 +508,7 @@ def test(args,
                 time.time()))
 
     # Save checkpoint.
+    '''
     global best_acc
     acc = 100.*correct/total
     if acc > best_acc:
@@ -524,6 +525,7 @@ def test(args,
         print("Saving checkpoint at {}".format(checkpoint_file))
         torch.save(net_state, checkpoint_file)
         best_acc = acc
+    '''
 
 
 def main():
