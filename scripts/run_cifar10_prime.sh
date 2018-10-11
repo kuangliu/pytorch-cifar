@@ -21,7 +21,7 @@ mkdir $PICKLE_DIR
 NUM_TRIALS=3
 for i in `seq 1 $NUM_TRIALS`
 do
-  OUTPUT_FILE="sampling_cifar10_"$NET"_"$SAMPLING_MIN"_"$BATCH_SIZE"_"$LR"_"$DECAY"_trial"$i"_v2"
+  OUTPUT_FILE="sampling_cifar10_"$NET"_"$SAMPLING_MIN"_"$BATCH_SIZE"_"$LR"_"$DECAY"_trial"$i"_v3"
   PICKLE_PREFIX="sampling_cifar10_"$NET"_"$SAMPLING_MIN"_"$BATCH_SIZE"_"$LR"_"$DECAY"_trial"$i
 
   echo $OUTPUT_DIR/$OUTPUT_FILE
