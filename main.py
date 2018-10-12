@@ -349,8 +349,9 @@ def train_sampling(args,
             l2_dist = torch.dist(target_tensor.to(device), softmax_output)
             #print("L2 Dist: ", l2_dist.item())
 
-            l2_dist *= l2_dist
-            #print("L2 Dist Squared: ", l2_dist.item())
+            if args.sampling_strategy in ["square"]:
+                l2_dist *= l2_dist
+                #print("L2 Dist Squared: ", l2_dist.item())
 
             # Translate l2_dist to new range
             old_max = .81
@@ -496,24 +497,23 @@ def test(args,
                 time.time()))
 
     # Save checkpoint.
-    '''
-    global best_acc
-    acc = 100.*correct/total
-    if acc > best_acc:
-        print('Saving..')
-        net_state = {
-            'net': net.state_dict(),
-            'acc': acc,
-            'epoch': epoch,
-        }
-        checkpoint_dir = os.path.join(args.pickle_dir, "checkpoint")
-        if not os.path.isdir(checkpoint_dir):
-            os.mkdir(checkpoint_dir)
-        checkpoint_file = os.path.join(checkpoint_dir, args.pickle_prefix + "_ckpt.t7")
-        print("Saving checkpoint at {}".format(checkpoint_file))
-        torch.save(net_state, checkpoint_file)
-        best_acc = acc
-    '''
+    if epoch == 65:
+        global best_acc
+        acc = 100.*correct/total
+        if acc > best_acc:
+            print('Saving..')
+            net_state = {
+                'net': net.state_dict(),
+                'acc': acc,
+                'epoch': epoch,
+            }
+            checkpoint_dir = os.path.join(args.pickle_dir, "checkpoint")
+            if not os.path.isdir(checkpoint_dir):
+                os.mkdir(checkpoint_dir)
+            checkpoint_file = os.path.join(checkpoint_dir, args.pickle_prefix + "_ckpt.t7")
+            print("Saving checkpoint at {}".format(checkpoint_file))
+            torch.save(net_state, checkpoint_file)
+            best_acc = acc
 
 
 def main():
@@ -543,7 +543,7 @@ def main():
                         help='how many images to backprop total')
 
     parser.add_argument('--sampling-strategy', default="recenter", metavar='N',
-                        help='Selective backprop sampling strategy among {recenter, translate, square}')
+                        help='Selective backprop sampling strategy among {recenter, translate, nosquare, square}')
     parser.add_argument('--sampling-min', type=float, default=0.05,
                         help='Minimum sampling rate for sampling strategy')
 
