@@ -39,8 +39,6 @@ class State:
         self.num_images_backpropped = 0
         self.num_images_skipped = 0
         self.num_images_seen = 0
-        self.num_correct_backpropped = 0
-        self.num_incorrect_skipped = 0
         self.sum_sp = 0
         self.pickle_dir = pickle_dir
         self.pickle_prefix = pickle_prefix
@@ -215,7 +213,7 @@ def train_topk(args,
         correct += predicted.eq(targets).sum().item()
 
         if batch_idx % args.log_interval == 0 and loss_reduction is not None:
-            print('train_debug,{},{},{},{:.6f},{:.6f},{},{:.6f},-1,-1'.format(
+            print('train_debug,{},{},{},{:.6f},{:.6f},{},{:.6f}'.format(
                         epoch,
                         state.num_images_backpropped,
                         state.num_images_skipped,
@@ -278,7 +276,7 @@ def train_baseline(args,
         correct += predicted.eq(targets).sum().item()
 
         if batch_idx % args.log_interval == 0:
-            print('train_debug,{},{},{},{:.6f},{:.6f},{},{:.6f},-1,-1'.format(
+            print('train_debug,{},{},{},{:.6f},{:.6f},{},{:.6f}'.format(
                         epoch,
                         state.num_images_backpropped,
                         state.num_images_skipped,
@@ -374,9 +372,6 @@ def train_sampling(args,
             sps_pool.append(select_probs.item())
             state.update_sum_sp(select_probs.item())
 
-            _, predicted = outputs.max(1)
-            is_correct = predicted.eq(targets).sum().item()
-
             draw = np.random.uniform(0, 1)
 
             if draw < select_probs.item():
@@ -387,9 +382,6 @@ def train_sampling(args,
                 chosen_targets.append(target)
                 chosen_ids.append(image_id.item())
                 chosen_sps.append(select_probs.item())
-
-                if is_correct:
-                    state.num_correct_backpropped += 1
 
                 if len(chosen_losses) == args.batch_size:
 
@@ -438,8 +430,6 @@ def train_sampling(args,
             else:
                 state.num_images_skipped += 1
                 num_skipped += 1
-                if not is_correct:
-                    state.num_incorrect_skipped += 1
                 print("Skipping image with sp {}".format(select_probs))
 
             data_pool.append(data.data[0])
@@ -452,16 +442,14 @@ def train_sampling(args,
         correct += predicted.eq(targets).sum().item()
 
         if batch_idx % args.log_interval == 0 and num_backprop > 0:
-            print('train_debug,{},{},{},{:.6f},{:.6f},{},{:.6f},{},{}'.format(
+            print('train_debug,{},{},{},{:.6f},{:.6f},{},{:.6f}'.format(
                         epoch,
                         state.num_images_backpropped,
                         state.num_images_skipped,
                         cumulative_loss / float(num_backprop + num_skipped),
                         cumulative_selected_loss / float(num_backprop),
                         time.time(),
-                        100.*correct/total,
-                        state.num_correct_backpropped,
-                        state.num_incorrect_skipped))
+                        100.*correct/total))
 
         # Stop epoch rightaway if we've exceeded maximum number of epochs
         if args.max_num_backprops:
@@ -496,7 +484,7 @@ def test(args,
             targets_array = targets.cpu().numpy()
             outputs_array = softmax_outputs.cpu().numpy()
             confidences = [o[t] for t, o in zip(targets_array, outputs_array)]
-            state.update_target_confidences(epoch, confidences)
+            state.update_target_confidences(epoch, confidences[:10])
 
     test_loss /= len(testloader.dataset)
     print('test_debug,{},{},{},{:.6f},{:.6f},{}'.format(
