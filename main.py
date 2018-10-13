@@ -304,11 +304,16 @@ def train_sampling(args,
 
     print('\nEpoch: %d in train_sampling' % epoch)
     net.train()
+
+    # Local function stats
     cumulative_loss = 0
     cumulative_selected_loss = 0
     correct = 0
     total = 0
+    num_backprop = 0
+    num_skipped = 0
 
+    # Batch stats
     losses_pool = []
     data_pool = []
     targets_pool = []
@@ -320,11 +325,6 @@ def train_sampling(args,
     chosen_targets = []
     chosen_ids = []
     chosen_sps = []
-
-    num_backprop = 0
-    num_skipped = 0
-
-    select_probs = -1
 
     for batch_idx, (data, targets, image_ids) in enumerate(trainloader):
 
@@ -349,7 +349,7 @@ def train_sampling(args,
             l2_dist = torch.dist(target_tensor.to(device), softmax_output)
             #print("L2 Dist: ", l2_dist.item())
 
-            if args.sampling_strategy in ["square"]:
+            if args.sampling_strategy in ["translate", "recenter", "square"]:
                 l2_dist *= l2_dist
                 #print("L2 Dist Squared: ", l2_dist.item())
 
@@ -454,8 +454,8 @@ def train_sampling(args,
 
         # Stop epoch rightaway if we've exceeded maximum number of epochs
         if args.max_num_backprops:
-            if args.max_num_backprops <=  + num_backprop:
-                return num_backprop
+            if args.max_num_backprops <= state.num_images_backpropped:
+                return
 
     return
 
