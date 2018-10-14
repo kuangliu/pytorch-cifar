@@ -292,7 +292,7 @@ def train_baseline(args,
 
     return
 
-class ForwardPassExample(object):
+class Example(object):
     def __init__(self,
                  loss=None,
                  softmax_output=None,
@@ -310,11 +310,42 @@ class ForwardPassExample(object):
 
 class Backpropper(object):
 
-  def __init__(self):
-    pass
+  def __init__(self, optimizer, recenter=False):
+    self.optimizer = optimizer
+    self.recenter = recenter
+    self.sum_select_probabilities = 0
+    self.total_num_examples = 0
 
-  def backward_pass(self):
-    pass
+  def backward_pass(self, batch):
+    
+
+    # Make new batch of selected examples
+    chosen_data = [example.datum for example in batch]
+    data_batch = torch.stack(chosen_data)
+
+    chosen_targets = [example.target for example in batch]
+    targets_batch = torch.stack(chosen_targets)
+
+    # Run forward pass
+    # Necessary if the network has been updated between last forward pass
+    output_batch = net(data_batch) 
+    loss_batch = nn.CrossEntropyLoss(reduce=False)(output_batch, targets_batch)
+
+    # Scale each loss by image-specific select probs
+    chosen_sps= [example.select_probability for example in batch]
+    chosen_sps_tensor = torch.tensor(chosen_sps, dtype=torch.float)
+    loss_batch = torch.mul(loss_batch, chosen_sps_tensor.to(device))
+
+    # Reduce loss
+    loss_batch = loss_batch.mean()
+
+    # Scale loss by average select probs
+    if self.recenter:
+        loss_batch.data *= state.average_sp
+
+    self.optimizer.zero_grad()
+    loss_batch.backward()
+    self.optimizer.step()
 
 
 class Trainer(object):
@@ -343,7 +374,7 @@ class Trainer(object):
         softmax_outputs = nn.Softmax()(outputs)
 
         examples = zip(losses, softmax_outputs, targets, data, image_ids)
-        return [ForwardPassExample(*example) for example in examples]
+        return [Example(*example) for example in examples]
 
 
 class SelectProbabiltyCalculator(object):
