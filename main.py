@@ -23,7 +23,6 @@ from utils import progress_bar
 best_acc = 0
 
 def get_stat(data):
-    # TODO: Add num backpropped
     stat = {}
     stat["average"] = np.average(data)
     stat["p50"] = np.percentile(data, 50)
@@ -298,17 +297,74 @@ class Logger(object):
     def __init__(self):
         self.current_epoch = 0
 
+        self.global_num_backpropped = 0
+        self.global_num_skipped = 0
+
+        self.partition_loss = 0
+        self.partition_backpropped_loss = 0
+        self.partition_num_backpropped = 0
+        self.partition_num_skipped = 0
+        self.partition_num_correct = 0
+
     def next_epoch(self):
         self.current_epoch += 1
 
+    @property
+    def partition_seen(self):
+        return self.partition_num_backpropped + self.partition_num_skipped
+
+    @property
+    def average_partition_loss(self):
+        return self.partition_loss / float(self.partition_seen)
+
+    @property
+    def average_partition_backpropped_loss(self):
+        return self.partition_backpropped_loss / float(self.partition_num_backpropped)
+
+    @property
+    def partition_accuracy(self):
+        return 100. * self.partition_num_correct / self.partition_seen
+
+    def next_partition(self):
+        self.partition_loss = 0
+        self.partition_backpropped_loss = 0
+        self.partition_num_backpropped = 0
+        self.partition_num_correct = 0
+
     def handle_forward_batch(self, batch):
-        print("Got forward batch of size {}".format(len(batch)))
+        # Populate batch_stats
+        self.partition_loss += sum([example.loss for example in batch])
 
     def handle_backward_batch(self, batch):
-        print("Got backward batch of size {}".format(len(batch)))
+        # Populating train_debug output line
+        # Populate image_id_hist
+        # Populate sp_by_image_id
+        num_backpropped = sum([int(example.select) for example in batch])
+        num_skipped = sum([int(not example.select) for example in batch])
+        self.global_num_backpropped += num_backpropped
+        self.global_num_skipped += num_skipped
+
+        self.partition_num_backpropped += num_backpropped
+        self.partition_num_skipped += num_skipped
+        self.partition_backpropped_loss += sum([example.backpropped_loss
+                                                for example in batch
+                                                if example.backpropped_loss])
+        self.partition_num_correct += sum([int(example.is_correct) for example in batch])
+
+        train_debug = 'train_debug,{},{},{},{:.6f},{:.6f},{},{:.6f}'.format(
+            self.current_epoch,
+            self.global_num_backpropped,
+            self.global_num_skipped,
+            self.average_partition_loss,
+            self.average_partition_backpropped_loss,
+            time.time(),
+            self.partition_accuracy)
+
+        print(train_debug)
 
 
 class Example(object):
+    # TODO: Add ExampleCollection class
     def __init__(self,
                  loss=None,
                  softmax_output=None,
@@ -322,6 +378,16 @@ class Example(object):
         self.datum = datum.detach()
         self.image_ids = image_id.detach()
         self.select_probability = select_probability
+        self.backpropped_loss = None   # Populated after backprop
+
+    @property
+    def predicted(self):
+        _, predicted = self.softmax_output.max(0)
+        return predicted
+
+    @property
+    def is_correct(self):
+        return self.predicted.eq(self.target)
 
 
 class Backpropper(object):
@@ -359,7 +425,6 @@ class Backpropper(object):
 
         self.update_sum_probabilities(batch)
 
-
         data = self.get_chosen_data_tensor(batch)
         targets = self.get_chosen_targets_tensor(batch)
         probabilities = self.get_chosen_probabilities_tensor(batch)
@@ -370,14 +435,19 @@ class Backpropper(object):
         losses = nn.CrossEntropyLoss(reduce=False)(outputs, targets)
 
         # Scale each loss by image-specific select probs
-        losses = torch.mul(losses, probabilities.to(self.device))
-
-        # Reduce loss
-        loss = losses.mean()
+        # TODO: FIX!!!!
+        losses = torch.div(losses, probabilities.to(self.device))
 
         # Scale loss by average select probs
         if self.recenter:
-            loss.data *= self.average_select_probability
+            losses = torch.mul(losses, self.average_select_probability)
+
+        # Add for logging selected loss
+        for example, loss in zip(batch, losses):
+            example.backpropped_loss = loss
+
+        # Reduce loss
+        loss = losses.mean()
 
         print("Backpropping {}/{}".format(len(data), len(batch)))
 
@@ -540,7 +610,7 @@ def train_sampling(args,
 
     # Local function stats
     cumulative_loss = 0
-    cumulative_selected_loss = 0
+    cumulative_backpropped_loss = 0
     correct = 0
     total = 0
     num_backprop = 0
@@ -643,7 +713,7 @@ def train_sampling(args,
                     optimizer.step()
 
                     # Bookkeeping
-                    cumulative_selected_loss += loss_batch.item()
+                    cumulative_backpropped_loss += loss_batch.item()
                     num_backprop += args.batch_size
                     state.num_images_backpropped += args.batch_size
                     state.update_images_hist(chosen_ids)
@@ -681,7 +751,7 @@ def train_sampling(args,
                         state.num_images_backpropped,
                         state.num_images_skipped,
                         cumulative_loss / float(num_backprop + num_skipped),
-                        cumulative_selected_loss / float(num_backprop),
+                        cumulative_backpropped_loss / float(num_backprop),
                         time.time(),
                         100.*correct/total))
 
@@ -900,6 +970,7 @@ def main():
                 trainer = train_topk
             elif args.sb_strategy == "sampling" and epoch >= args.sb_start_epoch:
                 trainer.train(trainloader)
+                logger.next_partition()
                 continue
             elif args.sb_strategy == "baseline" or epoch < args.sb_start_epoch:
                 # TODO: Use Trainer
