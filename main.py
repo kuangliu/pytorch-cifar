@@ -141,7 +141,8 @@ def train_topk(args,
                device,
                optimizer,
                epoch,
-               state):
+               state,
+               num_classes):
 
     print('\nEpoch: %d in train_topk' % epoch)
     net.train()
@@ -236,7 +237,8 @@ def train_baseline(args,
                device,
                optimizer,
                epoch,
-               state):
+               state,
+               num_classes):
 
     print('\nEpoch: %d in train_baseline' % epoch)
     net.train()
@@ -299,71 +301,96 @@ class Example(object):
                  target=None,
                  datum=None,
                  image_id=None,
-                 select_probability=None)
-        self.loss = loss
-        self.softmax_output = softmax_output
-        self.target = target
-        self.datum = datum
-        self.image_ids = image_id
+                 select_probability=None):
+        self.loss = loss.detach()
+        self.softmax_output = softmax_output.detach()
+        self.target = target.detach()
+        self.datum = datum.detach()
+        self.image_ids = image_id.detach()
         self.select_probability = select_probability
 
 
 class Backpropper(object):
 
-  def __init__(self, optimizer, recenter=False):
-    self.optimizer = optimizer
-    self.recenter = recenter
-    self.sum_select_probabilities = 0
-    self.total_num_examples = 0
+    def __init__(self, device, net, optimizer, recenter=False):
+        self.optimizer = optimizer
+        self.net = net
+        self.device = device
+        self.recenter = recenter
+        self.sum_select_probabilities = 0
+        self.total_num_examples = 0
 
-  def backward_pass(self, batch):
-    
+    def update_sum_probabilities(self, batch):
+        probabilities = [example.select_probability for example in batch]
+        self.sum_select_probabilities += sum(probabilities)
+        self.total_num_examples += len(probabilities)
 
-    # Make new batch of selected examples
-    chosen_data = [example.datum for example in batch]
-    data_batch = torch.stack(chosen_data)
+    def get_chosen_data_tensor(self, batch):
+        chosen_data = [example.datum for example in batch if example.select]
+        return torch.stack(chosen_data)
 
-    chosen_targets = [example.target for example in batch]
-    targets_batch = torch.stack(chosen_targets)
+    def get_chosen_targets_tensor(self, batch):
+        chosen_targets = [example.target for example in batch if example.select]
+        return torch.stack(chosen_targets)
 
-    # Run forward pass
-    # Necessary if the network has been updated between last forward pass
-    output_batch = net(data_batch) 
-    loss_batch = nn.CrossEntropyLoss(reduce=False)(output_batch, targets_batch)
+    def get_chosen_probabilities_tensor(self, batch):
+        probabilities = [example.select_probability for example in batch if example.select]
+        return torch.tensor(probabilities, dtype=torch.float)
 
-    # Scale each loss by image-specific select probs
-    chosen_sps= [example.select_probability for example in batch]
-    chosen_sps_tensor = torch.tensor(chosen_sps, dtype=torch.float)
-    loss_batch = torch.mul(loss_batch, chosen_sps_tensor.to(device))
+    @property
+    def average_select_probability(self):
+        return float(self.sum_select_probabilities) / self.total_num_examples
 
-    # Reduce loss
-    loss_batch = loss_batch.mean()
+    def backward_pass(self, batch):
 
-    # Scale loss by average select probs
-    if self.recenter:
-        loss_batch.data *= state.average_sp
+        self.update_sum_probabilities(batch)
 
-    self.optimizer.zero_grad()
-    loss_batch.backward()
-    self.optimizer.step()
+        data = self.get_chosen_data_tensor(batch)
+        targets = self.get_chosen_targets_tensor(batch)
+        probabilities = self.get_chosen_probabilities_tensor(batch)
+
+        # Run forward pass
+        # Necessary if the network has been updated between last forward pass
+        outputs = self.net(data) 
+        losses = nn.CrossEntropyLoss(reduce=False)(outputs, targets)
+
+        # Scale each loss by image-specific select probs
+        losses = torch.mul(losses, probabilities.to(self.device))
+
+        # Reduce loss
+        loss = losses.mean()
+
+        # Scale loss by average select probs
+        if self.recenter:
+            loss.data *= self.average_select_probability
+
+        # Run backwards pass
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
 
 
 class Trainer(object):
-    def __init__(self, device, net, backpropper):
+    def __init__(self, device, net, selector, backpropper, batch_size):
         self.device = device
         self.net = net
+        self.selector = selector
         self.backpropper = backpropper
+        self.batch_size = batch_size
+        self.backprop_queue = []
 
     def train(self, trainloader):
+        self.net.train()
         for batch in trainloader:
             self.train_batch(batch)
 
     def train_batch(self, batch):
         forward_pass_batch = self.forward_pass(*batch)
-        backward_pass_batch = self.filter.filter(forward_pass_batch)
-        if backward_pass_batch:
-            # TODO: START HERE
-            self.backpropper.backward_pass(backward_pass_batch)
+        annotated_batch = self.selector.mark(forward_pass_batch)
+        self.backprop_queue += annotated_batch
+        backprop_batch = self.get_batch()
+        if backprop_batch:
+            self.backpropper.backward_pass(backprop_batch)
 
     def forward_pass(self, data, targets, image_ids):
         data, targets = data.to(self.device), targets.to(self.device)
@@ -376,10 +403,40 @@ class Trainer(object):
         examples = zip(losses, softmax_outputs, targets, data, image_ids)
         return [Example(*example) for example in examples]
 
+    def get_batch(self):
+        num_images_to_backprop = 0
+        for index, example in enumerate(self.backprop_queue):
+            num_images_to_backprop += int(example.select)
+            if num_images_to_backprop == self.batch_size:
+                self.backprop_queue = self.backprop_queue[index+1:]
+                # Note: includes item that should and shouldn't be backpropped
+                return self.backprop_queue[:index+1]
+        return None
+
+
+class Selector(object):
+    def __init__(self, batch_size, probability_calcultor):
+        self.get_select_probability = probability_calcultor.get_probability
+
+    def select(self, example):
+        select_probability = example.select_probability
+        draw = np.random.uniform(0, 1)
+        return draw < select_probability.item()
+
+    def mark(self, forward_pass_batch):
+        for example in forward_pass_batch:
+            example.select_probability = self.get_select_probability(
+                    example.target,
+                    example.softmax_output)
+            example.select = self.select(example)
+        return forward_pass_batch
+
 
 class SelectProbabiltyCalculator(object):
-    def __init__(self, sampling_min, square=False, translate=False):
+    def __init__(self, sampling_min, num_classes, device, square=False, translate=False):
         self.sampling_min = sampling_min
+        self.num_classes = num_classes
+        self.device = device
         self.square = square
         self.translate = translate
         self.old_max = .9
@@ -388,7 +445,7 @@ class SelectProbabiltyCalculator(object):
 
     def get_probability(self, target, softmax_output):
         target_tensor = self.hot_encode_scalar(target)
-        l2_dist = torch.dist(target_tensor.to(device), softmax_output)
+        l2_dist = torch.dist(target_tensor.to(self.device), softmax_output)
         if self.square:
             l2_dist *= l2_dist
         if self.translate:
@@ -396,8 +453,7 @@ class SelectProbabiltyCalculator(object):
         return torch.clamp(l2_dist, min=self.sampling_min, max=1)
 
     def hot_encode_scalar(self, target):
-        num_classes = len(target.data)
-        target_vector = np.zeros(num_classes)
+        target_vector = np.zeros(self.num_classes)
         target_vector[target.item()] = 1
         target_tensor = torch.Tensor(target_vector)
         return target_tensor
@@ -410,34 +466,6 @@ class SelectProbabiltyCalculator(object):
         return l2_dist
 
 
-class Filter(object):
-    def __init__(self, batch_size, probability_calcultor):
-        self.batch_size = batch_size
-        self.backprop_queue = []
-        self.get_select_probability = probability_calcultor.get_probability
-
-    def add(self, example):
-        select_probability = example.select_probability
-        draw = np.random.uniform(0, 1)
-        if draw < select_probs.item():
-            self.backprop_queue.append(example)
-
-    def filter(self, forward_pass_batch):
-        for example in forward_pass_batch:
-            example.select_probability = self.get_select_probability(
-                    example.target,
-                    example.softmax_output)
-            self.add(example)
-        return self.get_batch()
-
-    def get_batch(self):
-        if len(self.backprop_queue) >= self.batch_size:
-            batch = self.backprop_queue[:self.batch_size]
-            self.backprop_queue = self.backprop_queue[self.batch_size:]
-            return batch
-        return None
-
-
 # Training
 def train_sampling(args,
                    net,
@@ -445,8 +473,31 @@ def train_sampling(args,
                    device,
                    optimizer,
                    epoch,
-                   state):
+                   state,
+                   num_classes):
 
+    '''
+    def __init__(self, batch_size, probability_calcultor):
+    def __init__(self, sampling_min, square=False, translate=False):
+    def __init__(self, optimizer, recenter=False):
+    '''
+
+    # TODO: Fix
+    square = args.sampling_strategy == "square"
+    translate = args.sampling_strategy == "translate"
+    recenter = args.sampling_strategy == "recenter"
+
+    probability_calculator = SelectProbabiltyCalculator(args.sampling_min,
+                                                        num_classes,
+                                                        device,
+                                                        square=square,
+                                                        translate=translate)
+    selector = Selector(args.batch_size, probability_calculator)
+    backpropper = Backpropper(device, net, optimizer, recenter=recenter)
+    trainer = Trainer(device, net, selector, backpropper, args.batch_size)
+    trainer.train(trainloader)
+
+    '''
     print('\nEpoch: %d in train_sampling' % epoch)
     net.train()
 
@@ -470,13 +521,6 @@ def train_sampling(args,
     chosen_targets = []
     chosen_ids = []
     chosen_sps = []
-
-    trainer = Trainer()
-    trainer.set_filter(batch_filter)
-    trainer.set_backpropper(backpropper)
-    trainer.set_terminator(terminator)
-    trainer.train()
-    
 
     for batch_idx, (data, targets, image_ids) in enumerate(trainloader):
 
@@ -608,6 +652,7 @@ def train_sampling(args,
         if args.max_num_backprops:
             if args.max_num_backprops <= state.num_images_backpropped:
                 return
+    '''
 
     return
 
@@ -813,7 +858,8 @@ def main():
                     device,
                     optimizer,
                     epoch,
-                    state)
+                    state,
+                    len(classes))
 
         # Write out summary statistics
         state.write_summaries()
