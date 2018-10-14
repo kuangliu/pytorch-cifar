@@ -365,7 +365,7 @@ class Backpropper(object):
         if self.recenter:
             loss.data *= self.average_select_probability
 
-        print("Backpropping {}/{}".format(len(batch), len(data)))
+        print("Backpropping {}/{}".format(len(data), len(batch)))
 
         # Run backwards pass
         self.optimizer.zero_grad()
@@ -453,7 +453,7 @@ class SelectProbabiltyCalculator(object):
         if self.square:
             l2_dist *= l2_dist
         if self.translate:
-            l2_dist = self.translate(l2_dist)
+            l2_dist = self.translate_probability(l2_dist)
         return torch.clamp(l2_dist, min=self.sampling_min, max=1)
 
     def hot_encode_scalar(self, target):
@@ -462,7 +462,7 @@ class SelectProbabiltyCalculator(object):
         target_tensor = torch.Tensor(target_vector)
         return target_tensor
 
-    def translate(self, l2_dist):
+    def translate_probability(self, l2_dist):
         new_max = 1
         old_range = (self.old_max - self.sampling_min)  
         new_range = (new_max - self.sampling_min) 
