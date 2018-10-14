@@ -292,6 +292,51 @@ def train_baseline(args,
     return
 
 
+class ImageIdHistLogger(object):
+
+    def __init__(self, pickle_dir, pickle_prefix, num_images):
+        self.current_epoch = 0
+        self.pickle_dir = pickle_dir
+        self.pickle_prefix = pickle_prefix
+        self.init_images_hist(num_images)
+
+    def next_epoch(self):
+        self.write()
+        self.current_epoch += 1
+
+    def init_images_hist(self, num_images):
+        # Store frequency of each image getting backpropped
+        keys = range(num_images)
+        self.images_hist = dict(zip(keys, [0] * len(keys)))
+        image_id_pickle_dir = os.path.join(self.pickle_dir, "image_id_hist")
+        self.image_id_pickle_file = os.path.join(image_id_pickle_dir,
+                                                 "{}_images_hist".format(self.pickle_prefix))
+        # Make images hist pickle path
+        if not os.path.exists(image_id_pickle_dir):
+            os.mkdir(image_id_pickle_dir)
+
+    def update_images_hist(self, image_ids):
+        for chosen_id in image_ids:
+            self.images_hist[chosen_id] += 1
+
+    def handle_backward_batch(self, batch):
+        ids = [example.image_id.item() for example in batch if example.select]
+        self.update_images_hist(ids)
+
+    def write(self):
+        latest_file = "{}.pickle".format(self.image_id_pickle_file)
+        with open(latest_file, "wb") as handle:
+            print(latest_file)
+            pickle.dump(self.images_hist, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+        epoch_file = "{}.epoch_{}.pickle".format(self.image_id_pickle_file,
+                                                 self.current_epoch)
+        if self.current_epoch % 10 == 0:
+            with open(epoch_file, "wb") as handle:
+                print(epoch_file)
+                pickle.dump(self.images_hist, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+
 class Logger(object):
 
     def __init__(self):
@@ -376,7 +421,7 @@ class Example(object):
         self.softmax_output = softmax_output.detach()
         self.target = target.detach()
         self.datum = datum.detach()
-        self.image_ids = image_id.detach()
+        self.image_id = image_id.detach()
         self.select_probability = select_probability
         self.backpropped_loss = None   # Populated after backprop
 
@@ -435,7 +480,6 @@ class Backpropper(object):
         losses = nn.CrossEntropyLoss(reduce=False)(outputs, targets)
 
         # Scale each loss by image-specific select probs
-        # TODO: FIX!!!!
         losses = torch.div(losses, probabilities.to(self.device))
 
         # Scale loss by average select probs
@@ -448,8 +492,6 @@ class Backpropper(object):
 
         # Reduce loss
         loss = losses.mean()
-
-        print("Backpropping {}/{}".format(len(data), len(batch)))
 
         # Run backwards pass
         self.optimizer.zero_grad()
@@ -573,195 +615,6 @@ class SelectProbabiltyCalculator(object):
         l2_dist = (((l2_dist - self.sampling_min) * new_range) / old_range) + self.sampling_min
         return l2_dist
 
-
-# Training
-def train_sampling(args,
-                   net,
-                   trainloader,
-                   device,
-                   optimizer,
-                   epoch,
-                   state):
-
-    '''
-    def __init__(self, batch_size, probability_calcultor):
-    def __init__(self, sampling_min, square=False, translate=False):
-    def __init__(self, optimizer, recenter=False):
-    '''
-
-    # TODO: Fix
-    square = args.sampling_strategy == "square"
-    translate = args.sampling_strategy == "translate"
-    recenter = args.sampling_strategy == "recenter"
-
-    probability_calculator = SelectProbabiltyCalculator(args.sampling_min,
-                                                        num_classes,
-                                                        device,
-                                                        square=square,
-                                                        translate=translate)
-    selector = Selector(args.batch_size, probability_calculator)
-    backpropper = Backpropper(device, net, optimizer, recenter=recenter)
-    trainer = Trainer(device, net, selector, backpropper, args.batch_size)
-    trainer.train(trainloader)
-
-    '''
-    print('\nEpoch: %d in train_sampling' % epoch)
-    net.train()
-
-    # Local function stats
-    cumulative_loss = 0
-    cumulative_backpropped_loss = 0
-    correct = 0
-    total = 0
-    num_backprop = 0
-    num_skipped = 0
-
-    # Batch stats
-    losses_pool = []
-    data_pool = []
-    targets_pool = []
-    ids_pool = []
-    sps_pool = []
-
-    chosen_data = []
-    chosen_losses = []
-    chosen_targets = []
-    chosen_ids = []
-    chosen_sps = []
-
-    for batch_idx, (data, targets, image_ids) in enumerate(trainloader):
-
-        data, targets = data.to(device), targets.to(device)
-
-        outputs = net(data)
-        losses = nn.CrossEntropyLoss(reduce=False)(outputs, targets)
-
-        # Prepare output for L2 distance
-        softmax_outputs = nn.Softmax()(outputs)
-
-        for loss, softmax_output, target, datum, image_id in zip(losses, softmax_outputs, targets, data, image_ids):
-
-            #print("Softmax Output: ", softmax_output.data)
-
-            # Prepare target for L2 distance
-            target_vector = np.zeros(len(softmax_output.data))
-            target_vector[target.item()] = 1
-            target_tensor = torch.Tensor(target_vector)
-            #print("Target: ", target_tensor)
-
-            l2_dist = torch.dist(target_tensor.to(device), softmax_output)
-            #print("L2 Dist: ", l2_dist.item())
-
-            if args.sampling_strategy in ["translate", "recenter", "square"]:
-                l2_dist *= l2_dist
-                #print("L2 Dist Squared: ", l2_dist.item())
-
-            # Translate l2_dist to new range
-            old_max = .81
-            old_min = args.sampling_min
-            new_max = 1
-            new_min = args.sampling_min
-            old_range = (old_max - old_min)  
-            new_range = (new_max - new_min) 
-            if args.sampling_strategy in ["translate", "recenter"]:
-                l2_dist = (((l2_dist - old_min) * new_range) / old_range) + new_min
-                #print("Translated l2_dist: ", l2_dist)
-
-            # Clamp l2_dist into a probability
-            select_probs = torch.clamp(l2_dist, min=args.sampling_min, max=1)
-            #print("Chosen Probs: ", select_probs.item())
-
-            cumulative_loss += loss.item()
-            losses_pool.append(loss.item())
-            sps_pool.append(select_probs.item())
-            state.update_sum_sp(select_probs.item())
-
-            draw = np.random.uniform(0, 1)
-
-            if draw < select_probs.item():
-
-                # Add to chosen data
-                chosen_losses.append(loss.item())
-                chosen_data.append(datum)
-                chosen_targets.append(target)
-                chosen_ids.append(image_id.item())
-                chosen_sps.append(select_probs.item())
-
-                if len(chosen_losses) == args.batch_size:
-
-                    # Make new batch of selected examples
-                    data_batch = torch.stack(chosen_data)
-                    targets_batch = torch.stack(chosen_targets)
-
-                    # Run forward pass
-                    output_batch = net(data_batch) # redundant
-                    loss_batch = nn.CrossEntropyLoss(reduce=False)(output_batch, targets_batch)
-
-                    # Scale each loss by image-specific select probs
-                    chosen_sps_tensor = torch.tensor(chosen_sps, dtype=torch.float)
-                    loss_batch = torch.mul(loss_batch, chosen_sps_tensor.to(device))
-
-                    # Reduce loss
-                    loss_batch = loss_batch.mean()
-
-                    # Scale loss by average select probs
-                    if args.sampling_strategy in ["recenter"]:
-                        loss_batch.data *= state.average_sp
-
-                    optimizer.zero_grad()
-                    loss_batch.backward()
-                    optimizer.step()
-
-                    # Bookkeeping
-                    cumulative_backpropped_loss += loss_batch.item()
-                    num_backprop += args.batch_size
-                    state.num_images_backpropped += args.batch_size
-                    state.update_images_hist(chosen_ids)
-                    state.update_batch_stats(pool_losses = losses_pool, 
-                                             chosen_losses = chosen_losses,
-                                             pool_sps = sps_pool,
-                                             chosen_sps = chosen_sps)
-
-                    # Reset  pools
-                    losses_pool = []
-                    sps_pool = []
-                    chosen_data = []
-                    chosen_losses = []
-                    chosen_targets = []
-                    chosen_ids = []
-                    chosen_sps = []
-
-            else:
-                state.num_images_skipped += 1
-                num_skipped += 1
-                print("Skipping image with sp {}".format(select_probs))
-
-            data_pool.append(data.data[0])
-            targets_pool.append(targets)
-            ids_pool.append(image_id.item())
-            sps_pool.append(select_probs.item())
-
-        _, predicted = outputs.max(1)
-        total += targets.size(0)
-        correct += predicted.eq(targets).sum().item()
-
-        if batch_idx % args.log_interval == 0 and num_backprop > 0:
-            print('train_debug,{},{},{},{:.6f},{:.6f},{},{:.6f}'.format(
-                        epoch,
-                        state.num_images_backpropped,
-                        state.num_images_skipped,
-                        cumulative_loss / float(num_backprop + num_skipped),
-                        cumulative_backpropped_loss / float(num_backprop),
-                        time.time(),
-                        100.*correct/total))
-
-        # Stop epoch rightaway if we've exceeded maximum number of epochs
-        if args.max_num_backprops:
-            if args.max_num_backprops <= state.num_images_backpropped:
-                return
-    '''
-
-    return
 
 def test(args,
          net,
@@ -939,6 +792,7 @@ def main():
 
     state = State(len(trainset), args.pickle_dir, args.pickle_prefix)
 
+    # TODO: fix
     square = args.sampling_strategy == "square"
     translate = args.sampling_strategy == "translate"
     recenter = args.sampling_strategy == "recenter"
@@ -952,11 +806,15 @@ def main():
     backpropper = Backpropper(device, net, optimizer, recenter=recenter)
     trainer = Trainer(device, net, selector, backpropper, args.batch_size)
     logger = Logger()
+    image_id_hist_logger = ImageIdHistLogger(args.pickle_dir,
+                                             args.pickle_prefix,
+                                             len(trainset))
     trainer.on_forward_pass(logger.handle_forward_batch)
     trainer.on_backward_pass(logger.handle_backward_batch)
+    trainer.on_backward_pass(image_id_hist_logger.handle_backward_batch)
 
     for epoch in range(start_epoch, start_epoch+500):
-        for partition in partitions:
+        for partition in partitions[0:1]:
             trainloader = torch.utils.data.DataLoader(partition, batch_size=args.batch_size, shuffle=True, num_workers=2)
             test(args, net, testloader, device, epoch, state)
 
@@ -987,6 +845,7 @@ def main():
                     epoch,
                     state)
         logger.next_epoch()
+        image_id_hist_logger.next_epoch()
 
         # Write out summary statistics
         state.write_summaries()
