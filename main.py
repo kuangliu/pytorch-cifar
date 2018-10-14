@@ -292,6 +292,120 @@ def train_baseline(args,
 
     return
 
+class ForwardPassExample(object):
+    def __init__(self,
+                 loss=None,
+                 softmax_output=None,
+                 target=None,
+                 datum=None,
+                 image_id=None,
+                 select_probability=None)
+        self.loss = loss
+        self.softmax_output = softmax_output
+        self.target = target
+        self.datum = datum
+        self.image_ids = image_id
+        self.select_probability = select_probability
+
+
+class Backpropper(object):
+
+  def __init__(self):
+    pass
+
+  def backward_pass(self):
+    pass
+
+
+class Trainer(object):
+    def __init__(self, device, net, backpropper):
+        self.device = device
+        self.net = net
+        self.backpropper = backpropper
+
+    def train(self, trainloader):
+        for batch in trainloader:
+            self.train_batch(batch)
+
+    def train_batch(self, batch):
+        forward_pass_batch = self.forward_pass(*batch)
+        backward_pass_batch = self.filter.filter(forward_pass_batch)
+        if backward_pass_batch:
+            # TODO: START HERE
+            self.backpropper.backward_pass(backward_pass_batch)
+
+    def forward_pass(self, data, targets, image_ids):
+        data, targets = data.to(self.device), targets.to(self.device)
+        outputs = self.net(data)
+        losses = nn.CrossEntropyLoss(reduce=False)(outputs, targets)
+
+        # Prepare output for L2 distance
+        softmax_outputs = nn.Softmax()(outputs)
+
+        examples = zip(losses, softmax_outputs, targets, data, image_ids)
+        return [ForwardPassExample(*example) for example in examples]
+
+
+class SelectProbabiltyCalculator(object):
+    def __init__(self, sampling_min, square=False, translate=False):
+        self.sampling_min = sampling_min
+        self.square = square
+        self.translate = translate
+        self.old_max = .9
+        if self.square:
+            self.old_max *= self.old_max
+
+    def get_probability(self, target, softmax_output):
+        target_tensor = self.hot_encode_scalar(target)
+        l2_dist = torch.dist(target_tensor.to(device), softmax_output)
+        if self.square:
+            l2_dist *= l2_dist
+        if self.translate:
+            l2_dist = self.translate(l2_dist)
+        return torch.clamp(l2_dist, min=self.sampling_min, max=1)
+
+    def hot_encode_scalar(self, target):
+        num_classes = len(target.data)
+        target_vector = np.zeros(num_classes)
+        target_vector[target.item()] = 1
+        target_tensor = torch.Tensor(target_vector)
+        return target_tensor
+
+    def translate(self, l2_dist):
+        new_max = 1
+        old_range = (self.old_max - self.sampling_min)  
+        new_range = (new_max - self.sampling_min) 
+        l2_dist = (((l2_dist - self.sampling_min) * new_range) / old_range) + self.sampling_min
+        return l2_dist
+
+
+class Filter(object):
+    def __init__(self, batch_size, probability_calcultor):
+        self.batch_size = batch_size
+        self.backprop_queue = []
+        self.get_select_probability = probability_calcultor.get_probability
+
+    def add(self, example):
+        select_probability = example.select_probability
+        draw = np.random.uniform(0, 1)
+        if draw < select_probs.item():
+            self.backprop_queue.append(example)
+
+    def filter(self, forward_pass_batch):
+        for example in forward_pass_batch:
+            example.select_probability = self.get_select_probability(
+                    example.target,
+                    example.softmax_output)
+            self.add(example)
+        return self.get_batch()
+
+    def get_batch(self):
+        if len(self.backprop_queue) >= self.batch_size:
+            batch = self.backprop_queue[:self.batch_size]
+            self.backprop_queue = self.backprop_queue[self.batch_size:]
+            return batch
+        return None
+
 
 # Training
 def train_sampling(args,
@@ -325,6 +439,13 @@ def train_sampling(args,
     chosen_targets = []
     chosen_ids = []
     chosen_sps = []
+
+    trainer = Trainer()
+    trainer.set_filter(batch_filter)
+    trainer.set_backpropper(backpropper)
+    trainer.set_terminator(terminator)
+    trainer.train()
+    
 
     for batch_idx, (data, targets, image_ids) in enumerate(trainloader):
 
