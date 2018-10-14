@@ -110,9 +110,9 @@ class State:
         self.target_confidences[epoch]["num_backpropped"] = self.num_images_backpropped
 
     def write_summaries(self):
-        with open(self.image_id_pickle_file, "wb") as handle:
-            print(self.image_id_pickle_file)
-            pickle.dump(self.images_hist, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        #with open(self.image_id_pickle_file, "wb") as handle:
+        #    print(self.image_id_pickle_file)
+        #    pickle.dump(self.images_hist, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
         with open(self.target_confidences_pickle_file, "wb") as handle:
             print(self.target_confidences_pickle_file)
@@ -842,7 +842,7 @@ def main():
 
         if stopped: break
 
-        for partition in partitions:
+        for partition in partitions[0:1]:
             trainloader = torch.utils.data.DataLoader(partition, batch_size=args.batch_size, shuffle=True, num_workers=2)
             test(args, net, testloader, device, epoch, state)
 
@@ -853,7 +853,7 @@ def main():
 
             if args.sb_strategy == "topk" and epoch >= args.sb_start_epoch:
                 # TODO: Use Trainer
-                trainer = train_topk
+                old_trainer = train_topk
             elif args.sb_strategy == "sampling" and epoch >= args.sb_start_epoch:
                 trainer.train(trainloader)
                 logger.next_partition()
@@ -863,12 +863,12 @@ def main():
                 continue
             elif args.sb_strategy == "baseline" or epoch < args.sb_start_epoch:
                 # TODO: Use Trainer
-                trainer = train_baseline
+                old_trainer = train_baseline
             else:
                 print("Unknown selective backprop strategy {}".format(args.sb_strategy))
                 exit()
 
-            trainer(args,
+            old_trainer(args,
                     net,
                     trainloader,
                     device,
@@ -879,7 +879,7 @@ def main():
         image_id_hist_logger.next_epoch()
 
         # Write out summary statistics
-        #state.write_summaries()
+        state.write_summaries()
 
 
 if __name__ == '__main__':
