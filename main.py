@@ -345,6 +345,7 @@ class Backpropper(object):
 
         self.update_sum_probabilities(batch)
 
+
         data = self.get_chosen_data_tensor(batch)
         targets = self.get_chosen_targets_tensor(batch)
         probabilities = self.get_chosen_probabilities_tensor(batch)
@@ -363,6 +364,8 @@ class Backpropper(object):
         # Scale loss by average select probs
         if self.recenter:
             loss.data *= self.average_select_probability
+
+        print("Backpropping {}/{}".format(len(batch), len(data)))
 
         # Run backwards pass
         self.optimizer.zero_grad()
@@ -408,9 +411,10 @@ class Trainer(object):
         for index, example in enumerate(self.backprop_queue):
             num_images_to_backprop += int(example.select)
             if num_images_to_backprop == self.batch_size:
-                self.backprop_queue = self.backprop_queue[index+1:]
                 # Note: includes item that should and shouldn't be backpropped
-                return self.backprop_queue[:index+1]
+                backprop_batch = self.backprop_queue[:index+1]
+                self.backprop_queue = self.backprop_queue[index+1:]
+                return backprop_batch
         return None
 
 
