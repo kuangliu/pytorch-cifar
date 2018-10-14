@@ -339,8 +339,10 @@ class ImageIdHistLogger(object):
 
 class Logger(object):
 
-    def __init__(self):
+    def __init__(self, log_interval=1):
         self.current_epoch = 0
+        self.current_batch = 0
+        self.log_interval = log_interval
 
         self.global_num_backpropped = 0
         self.global_num_skipped = 0
@@ -370,6 +372,17 @@ class Logger(object):
     def partition_accuracy(self):
         return 100. * self.partition_num_correct / self.partition_seen
 
+    @property
+    def train_debug(self):
+        return 'train_debug,{},{},{},{:.6f},{:.6f},{},{:.6f}'.format(
+            self.current_epoch,
+            self.global_num_backpropped,
+            self.global_num_skipped,
+            self.average_partition_loss,
+            self.average_partition_backpropped_loss,
+            time.time(),
+            self.partition_accuracy)
+
     def next_partition(self):
         self.partition_loss = 0
         self.partition_backpropped_loss = 0
@@ -381,9 +394,9 @@ class Logger(object):
         self.partition_loss += sum([example.loss for example in batch])
 
     def handle_backward_batch(self, batch):
-        # Populating train_debug output line
-        # Populate image_id_hist
-        # Populate sp_by_image_id
+
+        self.current_batch += 1
+
         num_backpropped = sum([int(example.select) for example in batch])
         num_skipped = sum([int(not example.select) for example in batch])
         self.global_num_backpropped += num_backpropped
@@ -396,16 +409,11 @@ class Logger(object):
                                                 if example.backpropped_loss])
         self.partition_num_correct += sum([int(example.is_correct) for example in batch])
 
-        train_debug = 'train_debug,{},{},{},{:.6f},{:.6f},{},{:.6f}'.format(
-            self.current_epoch,
-            self.global_num_backpropped,
-            self.global_num_skipped,
-            self.average_partition_loss,
-            self.average_partition_backpropped_loss,
-            time.time(),
-            self.partition_accuracy)
+        self.write()
 
-        print(train_debug)
+    def write(self):
+        if self.current_batch % self.log_interval == 0:
+            print(self.train_debug)
 
 
 class Example(object):
@@ -502,7 +510,7 @@ class Backpropper(object):
 
 
 class Trainer(object):
-    def __init__(self, device, net, selector, backpropper, batch_size):
+    def __init__(self, device, net, selector, backpropper, batch_size, max_num_backprops=float('inf')):
         self.device = device
         self.net = net
         self.selector = selector
@@ -511,6 +519,12 @@ class Trainer(object):
         self.backprop_queue = []
         self.forward_pass_handlers = []
         self.backward_pass_handlers = []
+        self.global_num_backpropped = 0
+        self.max_num_backprops = 0
+        self.on_backward_pass(self.update_num_backpropped)
+
+    def update_num_backpropped(self, batch):
+        self.global_num_backpropped += sum([1 for e in batch if e.select])
 
     def on_forward_pass(self, handler):
         self.forward_pass_handlers.append(handler)
@@ -526,9 +540,13 @@ class Trainer(object):
         for handler in self.backward_pass_handlers:
             handler(batch)
 
+    def stopped(self):
+        return self.global_num_backpropped >= self.max_num_backprops
+
     def train(self, trainloader):
         self.net.train()
         for batch in trainloader:
+            if self.stopped: break
             self.train_batch(batch)
 
     def train_batch(self, batch):
@@ -792,9 +810,10 @@ def main():
 
     state = State(len(trainset), args.pickle_dir, args.pickle_prefix)
 
-    # TODO: fix
-    square = args.sampling_strategy == "square"
-    translate = args.sampling_strategy == "translate"
+
+    ## Setup Trainer ##
+    square = args.sampling_strategy in ["square", "translate", "recenter"]
+    translate = args.sampling_strategy in ["translate", "recenter"]
     recenter = args.sampling_strategy == "recenter"
 
     probability_calculator = SelectProbabiltyCalculator(args.sampling_min,
@@ -804,17 +823,26 @@ def main():
                                                         translate=translate)
     selector = Selector(args.batch_size, probability_calculator)
     backpropper = Backpropper(device, net, optimizer, recenter=recenter)
-    trainer = Trainer(device, net, selector, backpropper, args.batch_size)
-    logger = Logger()
+    trainer = Trainer(device,
+                      net,
+                      selector,
+                      backpropper,
+                      args.batch_size,
+                      max_num_backprops=args.max_num_backprops)
+    logger = Logger(log_interval = args.log_interval)
     image_id_hist_logger = ImageIdHistLogger(args.pickle_dir,
                                              args.pickle_prefix,
                                              len(trainset))
     trainer.on_forward_pass(logger.handle_forward_batch)
     trainer.on_backward_pass(logger.handle_backward_batch)
     trainer.on_backward_pass(image_id_hist_logger.handle_backward_batch)
+    stopped = False
 
     for epoch in range(start_epoch, start_epoch+500):
-        for partition in partitions[0:1]:
+
+        if stopped: break
+
+        for partition in partitions:
             trainloader = torch.utils.data.DataLoader(partition, batch_size=args.batch_size, shuffle=True, num_workers=2)
             test(args, net, testloader, device, epoch, state)
 
@@ -829,6 +857,9 @@ def main():
             elif args.sb_strategy == "sampling" and epoch >= args.sb_start_epoch:
                 trainer.train(trainloader)
                 logger.next_partition()
+                if trainer.stopped():
+                    stopped = True
+                    break
                 continue
             elif args.sb_strategy == "baseline" or epoch < args.sb_start_epoch:
                 # TODO: Use Trainer
@@ -848,7 +879,7 @@ def main():
         image_id_hist_logger.next_epoch()
 
         # Write out summary statistics
-        state.write_summaries()
+        #state.write_summaries()
 
 
 if __name__ == '__main__':
