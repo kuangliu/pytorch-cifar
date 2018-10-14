@@ -141,8 +141,7 @@ def train_topk(args,
                device,
                optimizer,
                epoch,
-               state,
-               num_classes):
+               state):
 
     print('\nEpoch: %d in train_topk' % epoch)
     net.train()
@@ -237,8 +236,7 @@ def train_baseline(args,
                device,
                optimizer,
                epoch,
-               state,
-               num_classes):
+               state):
 
     print('\nEpoch: %d in train_baseline' % epoch)
     net.train()
@@ -293,6 +291,22 @@ def train_baseline(args,
                 return num_backprop
 
     return
+
+
+class Logger(object):
+
+    def __init__(self):
+        self.current_epoch = 0
+
+    def next_epoch(self):
+        self.current_epoch += 1
+
+    def handle_forward_batch(self, batch):
+        print("Got forward batch of size {}".format(len(batch)))
+
+    def handle_backward_batch(self, batch):
+        print("Got backward batch of size {}".format(len(batch)))
+
 
 class Example(object):
     def __init__(self,
@@ -372,6 +386,8 @@ class Backpropper(object):
         loss.backward()
         self.optimizer.step()
 
+        return batch
+
 
 class Trainer(object):
     def __init__(self, device, net, selector, backpropper, batch_size):
@@ -381,6 +397,22 @@ class Trainer(object):
         self.backpropper = backpropper
         self.batch_size = batch_size
         self.backprop_queue = []
+        self.forward_pass_handlers = []
+        self.backward_pass_handlers = []
+
+    def on_forward_pass(self, handler):
+        self.forward_pass_handlers.append(handler)
+
+    def on_backward_pass(self, handler):
+        self.backward_pass_handlers.append(handler)
+
+    def emit_forward_pass(self, batch):
+        for handler in self.forward_pass_handlers:
+            handler(batch)
+
+    def emit_backward_pass(self, batch):
+        for handler in self.backward_pass_handlers:
+            handler(batch)
 
     def train(self, trainloader):
         self.net.train()
@@ -389,11 +421,13 @@ class Trainer(object):
 
     def train_batch(self, batch):
         forward_pass_batch = self.forward_pass(*batch)
-        annotated_batch = self.selector.mark(forward_pass_batch)
-        self.backprop_queue += annotated_batch
+        annotated_forward_batch = self.selector.mark(forward_pass_batch)
+        self.emit_forward_pass(annotated_forward_batch)
+        self.backprop_queue += annotated_forward_batch
         backprop_batch = self.get_batch()
         if backprop_batch:
-            self.backpropper.backward_pass(backprop_batch)
+            annotated_backward_batch = self.backpropper.backward_pass(backprop_batch)
+            self.emit_backward_pass(annotated_backward_batch)
 
     def forward_pass(self, data, targets, image_ids):
         data, targets = data.to(self.device), targets.to(self.device)
@@ -477,8 +511,7 @@ def train_sampling(args,
                    device,
                    optimizer,
                    epoch,
-                   state,
-                   num_classes):
+                   state):
 
     '''
     def __init__(self, batch_size, probability_calcultor):
@@ -836,6 +869,22 @@ def main():
 
     state = State(len(trainset), args.pickle_dir, args.pickle_prefix)
 
+    square = args.sampling_strategy == "square"
+    translate = args.sampling_strategy == "translate"
+    recenter = args.sampling_strategy == "recenter"
+
+    probability_calculator = SelectProbabiltyCalculator(args.sampling_min,
+                                                        len(classes),
+                                                        device,
+                                                        square=square,
+                                                        translate=translate)
+    selector = Selector(args.batch_size, probability_calculator)
+    backpropper = Backpropper(device, net, optimizer, recenter=recenter)
+    trainer = Trainer(device, net, selector, backpropper, args.batch_size)
+    logger = Logger()
+    trainer.on_forward_pass(logger.handle_forward_batch)
+    trainer.on_backward_pass(logger.handle_backward_batch)
+
     for epoch in range(start_epoch, start_epoch+500):
         for partition in partitions:
             trainloader = torch.utils.data.DataLoader(partition, batch_size=args.batch_size, shuffle=True, num_workers=2)
@@ -847,10 +896,13 @@ def main():
                     return
 
             if args.sb_strategy == "topk" and epoch >= args.sb_start_epoch:
+                # TODO: Use Trainer
                 trainer = train_topk
             elif args.sb_strategy == "sampling" and epoch >= args.sb_start_epoch:
-                trainer = train_sampling
+                trainer.train(trainloader)
+                continue
             elif args.sb_strategy == "baseline" or epoch < args.sb_start_epoch:
+                # TODO: Use Trainer
                 trainer = train_baseline
             else:
                 print("Unknown selective backprop strategy {}".format(args.sb_strategy))
@@ -862,8 +914,8 @@ def main():
                     device,
                     optimizer,
                     epoch,
-                    state,
-                    len(classes))
+                    state)
+        logger.next_epoch()
 
         # Write out summary statistics
         state.write_summaries()
