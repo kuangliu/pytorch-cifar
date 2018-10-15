@@ -427,6 +427,7 @@ class Logger(object):
         self.partition_loss = 0
         self.partition_backpropped_loss = 0
         self.partition_num_backpropped = 0
+        self.partition_num_skipped = 0
         self.partition_num_correct = 0
 
     def handle_forward_batch(self, batch):
@@ -629,8 +630,30 @@ class Trainer(object):
         return None
 
 
-class Selector(object):
+class PrimedSelector(object):
+    def __init__(self, initial, final, initial_epochs):
+        self.epoch = 0
+        self.initial = initial
+        self.final = final
+        self.initial_epochs = initial_epochs
+        self.type = "Primed"
+
+    def next_epoch(self):
+        self.epoch += 1
+
+    def get_selector(self):
+        return self.initial if self.epoch < self.initial_epochs else self.final
+
+    def select(self, *args, **kwargs):
+        print(self.get_selector().type)
+        return self.get_selector().select(*args, **kwargs)
+
+    def mark(self, *args, **kwargs):
+        return self.get_selector().mark(*args, **kwargs)
+
+class SamplingSelector(object):
     def __init__(self, batch_size, probability_calcultor):
+        self.type = "Sampling"
         self.get_select_probability = probability_calcultor.get_probability
 
     def select(self, example):
@@ -643,6 +666,20 @@ class Selector(object):
             example.select_probability = self.get_select_probability(
                     example.target,
                     example.softmax_output)
+            example.select = self.select(example)
+        return forward_pass_batch
+
+
+class BaselineSelector(object):
+    def __init__(self):
+        self.type = "Baseline"
+
+    def select(self, example):
+        return True
+
+    def mark(self, forward_pass_batch):
+        for example in forward_pass_batch:
+            example.select_probability = torch.tensor([[1]])
             example.select = self.select(example)
         return forward_pass_batch
 
@@ -868,7 +905,16 @@ def main():
                                                         device,
                                                         square=square,
                                                         translate=translate)
-    selector = Selector(args.batch_size, probability_calculator)
+    if args.sb_strategy == "sampling":
+        final_selector = SamplingSelector(args.batch_size, probability_calculator)
+    elif args.sb_strategy == "baseline":
+        final_selector = BaselineSelector()
+    else:
+        print("Use sb-strategy in {sampling, baseline}")
+        exit()
+
+    selector = PrimedSelector(BaselineSelector, final_selector, args.sb_start_epoch)
+
     backpropper = Backpropper(device, net, optimizer, recenter=recenter)
     trainer = Trainer(device,
                       net,
@@ -896,27 +942,15 @@ def main():
             trainloader = torch.utils.data.DataLoader(partition, batch_size=args.batch_size, shuffle=True, num_workers=2)
             test(args, net, testloader, device, epoch, state)
 
-            # Stop training rightaway if we've exceeded maximum number of epochs
-            if args.max_num_backprops:
-                if args.max_num_backprops <= state.num_images_backpropped:
-                    return
-
-            if args.sb_strategy == "topk" and epoch >= args.sb_start_epoch:
-                # TODO: Use Trainer
-                old_trainer = train_topk
-            elif args.sb_strategy == "sampling" and epoch >= args.sb_start_epoch:
+            if epoch >= args.sb_start_epoch:
                 trainer.train(trainloader)
                 logger.next_partition()
                 if trainer.stopped:
                     stopped = True
                     break
                 continue
-            elif args.sb_strategy == "baseline" or epoch < args.sb_start_epoch:
-                # TODO: Use Trainer
-                old_trainer = train_baseline
             else:
-                print("Unknown selective backprop strategy {}".format(args.sb_strategy))
-                exit()
+                old_trainer = train_baseline
 
             old_trainer(args,
                     net,
@@ -925,12 +959,12 @@ def main():
                     optimizer,
                     epoch,
                     state)
+
         logger.next_epoch()
         image_id_hist_logger.next_epoch()
         probability_by_image_logger.next_epoch()
-
-        # Write out summary statistics
-        state.write_summaries()
+        selector.next_epoch()
+        state.write_summaries() # Writes test loggers
 
 
 if __name__ == '__main__':
