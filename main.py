@@ -20,6 +20,10 @@ import argparse
 from models import *
 from utils import progress_bar
 
+import lib.backproppers
+import lib.loggers
+import lib.selectors
+
 best_acc = 0
 
 def get_stat(data):
@@ -292,171 +296,6 @@ def train_baseline(args,
     return
 
 
-class ProbabilityByImageLogger(object):
-    def __init__(self, pickle_dir, pickle_prefix, max_num_images=100):
-        self.pickle_dir = pickle_dir
-        self.pickle_prefix = pickle_prefix
-        self.init_data()
-        self.max_num_images = max_num_images
-        self.data = {}
-
-    def next_epoch(self):
-        self.write()
-
-    def init_data(self):
-        # Store frequency of each image getting backpropped
-        data_pickle_dir = os.path.join(self.pickle_dir, "probabilities_by_image")
-        self.data_pickle_file = os.path.join(data_pickle_dir,
-                                             "{}_probabilities".format(self.pickle_prefix))
-        # Make images hist pickle path
-        if not os.path.exists(data_pickle_dir):
-            os.mkdir(data_pickle_dir)
-
-    def update_data(self, image_ids, probabilities):
-        for image_id, probability in zip(image_ids, probabilities):
-            if image_id not in self.data.keys():
-                if image_id >= self.max_num_images:
-                    continue
-                self.data[image_id] = []
-            self.data[image_id].append(probability)
-
-    def handle_backward_batch(self, batch):
-        ids = [example.image_id.item() for example in batch]
-        probabilities = [example.select_probability.item() for example in batch]
-        self.update_data(ids, probabilities)
-
-    def write(self):
-        latest_file = "{}.pickle".format(self.data_pickle_file)
-        with open(latest_file, "wb") as handle:
-            print(latest_file)
-            pickle.dump(self.data, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-
-class ImageIdHistLogger(object):
-
-    def __init__(self, pickle_dir, pickle_prefix, num_images):
-        self.current_epoch = 0
-        self.pickle_dir = pickle_dir
-        self.pickle_prefix = pickle_prefix
-        self.init_data(num_images)
-
-    def next_epoch(self):
-        self.write()
-        self.current_epoch += 1
-
-    def init_data(self, num_images):
-        # Store frequency of each image getting backpropped
-        keys = range(num_images)
-        self.data = dict(zip(keys, [0] * len(keys)))
-        data_pickle_dir = os.path.join(self.pickle_dir, "image_id_hist")
-        self.data_pickle_file = os.path.join(data_pickle_dir,
-                                                 "{}_images_hist".format(self.pickle_prefix))
-        # Make images hist pickle path
-        if not os.path.exists(data_pickle_dir):
-            os.mkdir(data_pickle_dir)
-
-    def update_data(self, image_ids):
-        for chosen_id in image_ids:
-            self.data[chosen_id] += 1
-
-    def handle_backward_batch(self, batch):
-        ids = [example.image_id.item() for example in batch if example.select]
-        self.update_data(ids)
-
-    def write(self):
-        latest_file = "{}.pickle".format(self.data_pickle_file)
-        with open(latest_file, "wb") as handle:
-            print(latest_file)
-            pickle.dump(self.data, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-        epoch_file = "{}.epoch_{}.pickle".format(self.data_pickle_file,
-                                                 self.current_epoch)
-        if self.current_epoch % 10 == 0:
-            with open(epoch_file, "wb") as handle:
-                print(epoch_file)
-                pickle.dump(self.data, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-
-class Logger(object):
-
-    def __init__(self, log_interval=1):
-        self.current_epoch = 0
-        self.current_batch = 0
-        self.log_interval = log_interval
-
-        self.global_num_backpropped = 0
-        self.global_num_skipped = 0
-
-        self.partition_loss = 0
-        self.partition_backpropped_loss = 0
-        self.partition_num_backpropped = 0
-        self.partition_num_skipped = 0
-        self.partition_num_correct = 0
-
-    def next_epoch(self):
-        self.current_epoch += 1
-
-    @property
-    def partition_seen(self):
-        return self.partition_num_backpropped + self.partition_num_skipped
-
-    @property
-    def average_partition_loss(self):
-        return self.partition_loss / float(self.partition_seen)
-
-    @property
-    def average_partition_backpropped_loss(self):
-        return self.partition_backpropped_loss / float(self.partition_num_backpropped)
-
-    @property
-    def partition_accuracy(self):
-        return 100. * self.partition_num_correct / self.partition_seen
-
-    @property
-    def train_debug(self):
-        return 'train_debug,{},{},{},{:.6f},{:.6f},{},{:.6f}'.format(
-            self.current_epoch,
-            self.global_num_backpropped,
-            self.global_num_skipped,
-            self.average_partition_loss,
-            self.average_partition_backpropped_loss,
-            time.time(),
-            self.partition_accuracy)
-
-    def next_partition(self):
-        self.partition_loss = 0
-        self.partition_backpropped_loss = 0
-        self.partition_num_backpropped = 0
-        self.partition_num_skipped = 0
-        self.partition_num_correct = 0
-
-    def handle_forward_batch(self, batch):
-        # Populate batch_stats
-        self.partition_loss += sum([example.loss for example in batch])
-
-    def handle_backward_batch(self, batch):
-
-        self.current_batch += 1
-
-        num_backpropped = sum([int(example.select) for example in batch])
-        num_skipped = sum([int(not example.select) for example in batch])
-        self.global_num_backpropped += num_backpropped
-        self.global_num_skipped += num_skipped
-
-        self.partition_num_backpropped += num_backpropped
-        self.partition_num_skipped += num_skipped
-        self.partition_backpropped_loss += sum([example.backpropped_loss
-                                                for example in batch
-                                                if example.backpropped_loss])
-        self.partition_num_correct += sum([int(example.is_correct) for example in batch])
-
-        self.write()
-
-    def write(self):
-        if self.current_batch % self.log_interval == 0:
-            print(self.train_debug)
-
-
 class Example(object):
     # TODO: Add ExampleCollection class
     def __init__(self,
@@ -482,136 +321,6 @@ class Example(object):
     @property
     def is_correct(self):
         return self.predicted.eq(self.target)
-
-
-class PrimedBackpropper(object):
-    def __init__(self, initial, final, initial_epochs):
-        self.epoch = 0
-        self.initial = initial
-        self.final = final
-        self.initial_epochs = initial_epochs
-
-    def next_epoch(self):
-        self.epoch += 1
-
-    def get_backpropper(self):
-        return self.initial if self.epoch < self.initial_epochs else self.final
-
-    def backward_pass(self, *args, **kwargs):
-        return self.get_backpropper().backward_pass(*args, **kwargs)
-
-
-class BaselineBackpropper(object):
-
-    def __init__(self, device, net, optimizer):
-        self.optimizer = optimizer
-        self.net = net
-        self.device = device
-        self.sum_select_probabilities = 0
-        self.total_num_examples = 0
-
-    def _get_chosen_data_tensor(self, batch):
-        chosen_data = [example.datum for example in batch if example.select]
-        return torch.stack(chosen_data)
-
-    def _get_chosen_targets_tensor(self, batch):
-        chosen_targets = [example.target for example in batch if example.select]
-        return torch.stack(chosen_targets)
-
-    def _get_chosen_probabilities_tensor(self, batch):
-        probabilities = [example.select_probability for example in batch if example.select]
-        return torch.tensor(probabilities, dtype=torch.float)
-
-    def backward_pass(self, batch):
-
-        data = self._get_chosen_data_tensor(batch)
-        targets = self._get_chosen_targets_tensor(batch)
-        probabilities = self._get_chosen_probabilities_tensor(batch)
-
-        # Run forward pass
-        # Necessary if the network has been updated between last forward pass
-        outputs = self.net(data) 
-        losses = nn.CrossEntropyLoss(reduce=False)(outputs, targets)
-
-        # Add for logging selected loss
-        for example, loss in zip(batch, losses):
-            example.backpropped_loss = loss
-
-        # Reduce loss
-        loss = losses.mean()
-
-        # Run backwards pass
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
-
-        return batch
-
-
-class SamplingBackpropper(object):
-
-    def __init__(self, device, net, optimizer, recenter=False):
-        self.optimizer = optimizer
-        self.net = net
-        self.device = device
-        self.recenter = recenter
-        self.sum_select_probabilities = 0
-        self.total_num_examples = 0
-
-    def update_sum_probabilities(self, batch):
-        probabilities = [example.select_probability.item() for example in batch]
-        self.sum_select_probabilities += sum(probabilities)
-        self.total_num_examples += len(probabilities)
-
-    def _get_chosen_data_tensor(self, batch):
-        chosen_data = [example.datum for example in batch if example.select]
-        return torch.stack(chosen_data)
-
-    def _get_chosen_targets_tensor(self, batch):
-        chosen_targets = [example.target for example in batch if example.select]
-        return torch.stack(chosen_targets)
-
-    def _get_chosen_probabilities_tensor(self, batch):
-        probabilities = [example.select_probability for example in batch if example.select]
-        return torch.tensor(probabilities, dtype=torch.float)
-
-    @property
-    def average_select_probability(self):
-        return float(self.sum_select_probabilities) / self.total_num_examples
-
-    def backward_pass(self, batch):
-
-        self.update_sum_probabilities(batch)
-
-        data = self._get_chosen_data_tensor(batch)
-        targets = self._get_chosen_targets_tensor(batch)
-        probabilities = self._get_chosen_probabilities_tensor(batch)
-
-        # Run forward pass
-        # Necessary if the network has been updated between last forward pass
-        outputs = self.net(data) 
-        losses = nn.CrossEntropyLoss(reduce=False)(outputs, targets)
-
-        # Scale each loss by image-specific select probs
-        losses = torch.div(losses, probabilities.to(self.device))
-
-        # Scale loss by average select probs
-        if self.recenter:
-            losses = torch.mul(losses, self.average_select_probability)
-
-        # Add for logging selected loss
-        for example, loss in zip(batch, losses):
-            example.backpropped_loss = loss
-
-        # Reduce loss
-        loss = losses.mean()
-
-        # Run backwards pass
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
-
-        return batch
 
 
 class Trainer(object):
@@ -692,90 +401,6 @@ class Trainer(object):
                 self.backprop_queue = self.backprop_queue[index+1:]
                 return backprop_batch
         return None
-
-
-class PrimedSelector(object):
-    def __init__(self, initial, final, initial_epochs):
-        self.epoch = 0
-        self.initial = initial
-        self.final = final
-        self.initial_epochs = initial_epochs
-
-    def next_epoch(self):
-        self.epoch += 1
-
-    def get_selector(self):
-        return self.initial if self.epoch < self.initial_epochs else self.final
-
-    def select(self, *args, **kwargs):
-        return self.get_selector().select(*args, **kwargs)
-
-    def mark(self, *args, **kwargs):
-        return self.get_selector().mark(*args, **kwargs)
-
-
-class SamplingSelector(object):
-    def __init__(self, batch_size, probability_calcultor):
-        self.get_select_probability = probability_calcultor.get_probability
-
-    def select(self, example):
-        select_probability = example.select_probability
-        draw = np.random.uniform(0, 1)
-        return draw < select_probability.item()
-
-    def mark(self, forward_pass_batch):
-        for example in forward_pass_batch:
-            example.select_probability = self.get_select_probability(
-                    example.target,
-                    example.softmax_output)
-            example.select = self.select(example)
-        return forward_pass_batch
-
-
-class BaselineSelector(object):
-
-    def select(self, example):
-        return True
-
-    def mark(self, forward_pass_batch):
-        for example in forward_pass_batch:
-            example.select_probability = torch.tensor([[1]])
-            example.select = self.select(example)
-        return forward_pass_batch
-
-
-class SelectProbabiltyCalculator(object):
-    def __init__(self, sampling_min, num_classes, device, square=False, translate=False):
-        self.sampling_min = sampling_min
-        self.num_classes = num_classes
-        self.device = device
-        self.square = square
-        self.translate = translate
-        self.old_max = .9
-        if self.square:
-            self.old_max *= self.old_max
-
-    def get_probability(self, target, softmax_output):
-        target_tensor = self.hot_encode_scalar(target)
-        l2_dist = torch.dist(target_tensor.to(self.device), softmax_output)
-        if self.square:
-            l2_dist *= l2_dist
-        if self.translate:
-            l2_dist = self.translate_probability(l2_dist)
-        return torch.clamp(l2_dist, min=self.sampling_min, max=1)
-
-    def hot_encode_scalar(self, target):
-        target_vector = np.zeros(self.num_classes)
-        target_vector[target.item()] = 1
-        target_tensor = torch.Tensor(target_vector)
-        return target_tensor
-
-    def translate_probability(self, l2_dist):
-        new_max = 1
-        old_range = (self.old_max - self.sampling_min)  
-        new_range = (new_max - self.sampling_min) 
-        l2_dist = (((l2_dist - self.sampling_min) * new_range) / old_range) + self.sampling_min
-        return l2_dist
 
 
 def test(args,
@@ -961,29 +586,29 @@ def main():
     translate = args.sampling_strategy in ["translate", "recenter"]
     recenter = args.sampling_strategy == "recenter"
 
-    probability_calculator = SelectProbabiltyCalculator(args.sampling_min,
+    probability_calculator = lib.selectors.SelectProbabiltyCalculator(args.sampling_min,
                                                         len(classes),
                                                         device,
                                                         square=square,
                                                         translate=translate)
     if args.sb_strategy == "sampling":
-        final_selector = SamplingSelector(args.batch_size, probability_calculator)
-        final_backpropper = SamplingBackpropper(device,
+        final_selector = lib.selectors.SamplingSelector(args.batch_size, probability_calculator)
+        final_backpropper = lib.backproppers.SamplingBackpropper(device,
                                                 net,
                                                 optimizer,
                                                 recenter=recenter)
     elif args.sb_strategy == "baseline":
-        final_selector = BaselineSelector()
-        final_backpropper = BaselineBackpropper(device,
+        final_selector = lib.selectors.BaselineSelector()
+        final_backpropper = lib.backproppers.BaselineBackpropper(device,
                                                 net,
                                                 optimizer)
     else:
         print("Use sb-strategy in {sampling, baseline}")
         exit()
 
-    selector = PrimedSelector(BaselineSelector(), final_selector, args.sb_start_epoch)
+    selector = lib.selectors.PrimedSelector(lib.selectors.BaselineSelector(), final_selector, args.sb_start_epoch)
 
-    backpropper = PrimedBackpropper(BaselineBackpropper(device, net, optimizer),
+    backpropper = lib.backproppers.PrimedBackpropper(lib.backproppers.BaselineBackpropper(device, net, optimizer),
                                     final_backpropper,
                                     args.sb_start_epoch)
 
@@ -993,11 +618,11 @@ def main():
                       backpropper,
                       args.batch_size,
                       max_num_backprops=args.max_num_backprops)
-    logger = Logger(log_interval = args.log_interval)
-    image_id_hist_logger = ImageIdHistLogger(args.pickle_dir,
+    logger = lib.loggers.Logger(log_interval = args.log_interval)
+    image_id_hist_logger = lib.loggers.ImageIdHistLogger(args.pickle_dir,
                                              args.pickle_prefix,
                                              len(trainset))
-    probability_by_image_logger = ProbabilityByImageLogger(args.pickle_dir,
+    probability_by_image_logger = lib.loggers.ProbabilityByImageLogger(args.pickle_dir,
                                                            args.pickle_prefix)
     trainer.on_forward_pass(logger.handle_forward_batch)
     trainer.on_backward_pass(logger.handle_backward_batch)
