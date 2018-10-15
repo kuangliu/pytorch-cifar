@@ -651,6 +651,7 @@ class PrimedSelector(object):
     def mark(self, *args, **kwargs):
         return self.get_selector().mark(*args, **kwargs)
 
+
 class SamplingSelector(object):
     def __init__(self, batch_size, probability_calcultor):
         self.type = "Sampling"
@@ -723,7 +724,8 @@ def test(args,
          testloader,
          device,
          epoch,
-         state):
+         state,
+         logger):
 
     net.eval()
     test_loss = 0
@@ -749,8 +751,8 @@ def test(args,
     test_loss /= len(testloader.dataset)
     print('test_debug,{},{},{},{:.6f},{:.6f},{}'.format(
                 epoch,
-                state.num_images_backpropped,
-                state.num_images_skipped,
+                logger.global_num_backpropped,
+                logger.global_num_skipped,
                 test_loss,
                 100.*correct/total,
                 time.time()))
@@ -913,7 +915,7 @@ def main():
         print("Use sb-strategy in {sampling, baseline}")
         exit()
 
-    selector = PrimedSelector(BaselineSelector, final_selector, args.sb_start_epoch)
+    selector = PrimedSelector(BaselineSelector(), final_selector, args.sb_start_epoch)
 
     backpropper = Backpropper(device, net, optimizer, recenter=recenter)
     trainer = Trainer(device,
@@ -940,25 +942,13 @@ def main():
 
         for partition in partitions:
             trainloader = torch.utils.data.DataLoader(partition, batch_size=args.batch_size, shuffle=True, num_workers=2)
-            test(args, net, testloader, device, epoch, state)
+            test(args, net, testloader, device, epoch, state, logger)
 
-            if epoch >= args.sb_start_epoch:
-                trainer.train(trainloader)
-                logger.next_partition()
-                if trainer.stopped:
-                    stopped = True
-                    break
-                continue
-            else:
-                old_trainer = train_baseline
-
-            old_trainer(args,
-                    net,
-                    trainloader,
-                    device,
-                    optimizer,
-                    epoch,
-                    state)
+            trainer.train(trainloader)
+            logger.next_partition()
+            if trainer.stopped:
+                stopped = True
+                break
 
         logger.next_epoch()
         image_id_hist_logger.next_epoch()
