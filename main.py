@@ -484,7 +484,71 @@ class Example(object):
         return self.predicted.eq(self.target)
 
 
-class Backpropper(object):
+class PrimedBackpropper(object):
+    def __init__(self, initial, final, initial_epochs):
+        self.epoch = 0
+        self.initial = initial
+        self.final = final
+        self.initial_epochs = initial_epochs
+
+    def next_epoch(self):
+        self.epoch += 1
+
+    def get_backpropper(self):
+        return self.initial if self.epoch < self.initial_epochs else self.final
+
+    def backward_pass(self, *args, **kwargs):
+        return self.get_backpropper().backward_pass(*args, **kwargs)
+
+
+class BaselineBackpropper(object):
+
+    def __init__(self, device, net, optimizer):
+        self.optimizer = optimizer
+        self.net = net
+        self.device = device
+        self.sum_select_probabilities = 0
+        self.total_num_examples = 0
+
+    def _get_chosen_data_tensor(self, batch):
+        chosen_data = [example.datum for example in batch if example.select]
+        return torch.stack(chosen_data)
+
+    def _get_chosen_targets_tensor(self, batch):
+        chosen_targets = [example.target for example in batch if example.select]
+        return torch.stack(chosen_targets)
+
+    def _get_chosen_probabilities_tensor(self, batch):
+        probabilities = [example.select_probability for example in batch if example.select]
+        return torch.tensor(probabilities, dtype=torch.float)
+
+    def backward_pass(self, batch):
+
+        data = self._get_chosen_data_tensor(batch)
+        targets = self._get_chosen_targets_tensor(batch)
+        probabilities = self._get_chosen_probabilities_tensor(batch)
+
+        # Run forward pass
+        # Necessary if the network has been updated between last forward pass
+        outputs = self.net(data) 
+        losses = nn.CrossEntropyLoss(reduce=False)(outputs, targets)
+
+        # Add for logging selected loss
+        for example, loss in zip(batch, losses):
+            example.backpropped_loss = loss
+
+        # Reduce loss
+        loss = losses.mean()
+
+        # Run backwards pass
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+
+        return batch
+
+
+class SamplingBackpropper(object):
 
     def __init__(self, device, net, optimizer, recenter=False):
         self.optimizer = optimizer
@@ -495,19 +559,19 @@ class Backpropper(object):
         self.total_num_examples = 0
 
     def update_sum_probabilities(self, batch):
-        probabilities = [example.select_probability.to(self.device) for example in batch]
+        probabilities = [example.select_probability.item() for example in batch]
         self.sum_select_probabilities += sum(probabilities)
         self.total_num_examples += len(probabilities)
 
-    def get_chosen_data_tensor(self, batch):
+    def _get_chosen_data_tensor(self, batch):
         chosen_data = [example.datum for example in batch if example.select]
         return torch.stack(chosen_data)
 
-    def get_chosen_targets_tensor(self, batch):
+    def _get_chosen_targets_tensor(self, batch):
         chosen_targets = [example.target for example in batch if example.select]
         return torch.stack(chosen_targets)
 
-    def get_chosen_probabilities_tensor(self, batch):
+    def _get_chosen_probabilities_tensor(self, batch):
         probabilities = [example.select_probability for example in batch if example.select]
         return torch.tensor(probabilities, dtype=torch.float)
 
@@ -519,9 +583,9 @@ class Backpropper(object):
 
         self.update_sum_probabilities(batch)
 
-        data = self.get_chosen_data_tensor(batch)
-        targets = self.get_chosen_targets_tensor(batch)
-        probabilities = self.get_chosen_probabilities_tensor(batch)
+        data = self._get_chosen_data_tensor(batch)
+        targets = self._get_chosen_targets_tensor(batch)
+        probabilities = self._get_chosen_probabilities_tensor(batch)
 
         # Run forward pass
         # Necessary if the network has been updated between last forward pass
@@ -636,7 +700,6 @@ class PrimedSelector(object):
         self.initial = initial
         self.final = final
         self.initial_epochs = initial_epochs
-        self.type = "Primed"
 
     def next_epoch(self):
         self.epoch += 1
@@ -645,7 +708,6 @@ class PrimedSelector(object):
         return self.initial if self.epoch < self.initial_epochs else self.final
 
     def select(self, *args, **kwargs):
-        print(self.get_selector().type)
         return self.get_selector().select(*args, **kwargs)
 
     def mark(self, *args, **kwargs):
@@ -654,7 +716,6 @@ class PrimedSelector(object):
 
 class SamplingSelector(object):
     def __init__(self, batch_size, probability_calcultor):
-        self.type = "Sampling"
         self.get_select_probability = probability_calcultor.get_probability
 
     def select(self, example):
@@ -672,8 +733,6 @@ class SamplingSelector(object):
 
 
 class BaselineSelector(object):
-    def __init__(self):
-        self.type = "Baseline"
 
     def select(self, example):
         return True
@@ -909,15 +968,25 @@ def main():
                                                         translate=translate)
     if args.sb_strategy == "sampling":
         final_selector = SamplingSelector(args.batch_size, probability_calculator)
+        final_backpropper = SamplingBackpropper(device,
+                                                net,
+                                                optimizer,
+                                                recenter=recenter)
     elif args.sb_strategy == "baseline":
         final_selector = BaselineSelector()
+        final_backpropper = BaselineBackpropper(device,
+                                                net,
+                                                optimizer)
     else:
         print("Use sb-strategy in {sampling, baseline}")
         exit()
 
     selector = PrimedSelector(BaselineSelector(), final_selector, args.sb_start_epoch)
 
-    backpropper = Backpropper(device, net, optimizer, recenter=recenter)
+    backpropper = PrimedBackpropper(BaselineBackpropper(device, net, optimizer),
+                                    final_backpropper,
+                                    args.sb_start_epoch)
+
     trainer = Trainer(device,
                       net,
                       selector,
@@ -957,6 +1026,7 @@ def main():
         image_id_hist_logger.next_epoch()
         probability_by_image_logger.next_epoch()
         selector.next_epoch()
+        backpropper = backpropper.next_epoch()
         state.write_summaries() # Writes test loggers
 
 
