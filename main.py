@@ -292,49 +292,89 @@ def train_baseline(args,
     return
 
 
+class ProbabilityByImageLogger(object):
+    def __init__(self, pickle_dir, pickle_prefix, max_num_images=100):
+        self.pickle_dir = pickle_dir
+        self.pickle_prefix = pickle_prefix
+        self.init_data()
+        self.max_num_images = max_num_images
+        self.data = {}
+
+    def next_epoch(self):
+        self.write()
+
+    def init_data(self):
+        # Store frequency of each image getting backpropped
+        data_pickle_dir = os.path.join(self.pickle_dir, "probabilities_by_image")
+        self.data_pickle_file = os.path.join(data_pickle_dir,
+                                             "{}_probabilities".format(self.pickle_prefix))
+        # Make images hist pickle path
+        if not os.path.exists(data_pickle_dir):
+            os.mkdir(data_pickle_dir)
+
+    def update_data(self, image_ids, probabilities):
+        for image_id, probability in zip(image_ids, probabilities):
+            if image_id not in self.data.keys():
+                if image_id >= self.max_num_images:
+                    continue
+                self.data[image_id] = []
+            self.data[image_id].append(probability)
+
+    def handle_backward_batch(self, batch):
+        ids = [example.image_id.item() for example in batch]
+        probabilities = [example.select_probability.item() for example in batch]
+        self.update_data(ids, probabilities)
+
+    def write(self):
+        latest_file = "{}.pickle".format(self.data_pickle_file)
+        with open(latest_file, "wb") as handle:
+            print(latest_file)
+            pickle.dump(self.data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+
 class ImageIdHistLogger(object):
 
     def __init__(self, pickle_dir, pickle_prefix, num_images):
         self.current_epoch = 0
         self.pickle_dir = pickle_dir
         self.pickle_prefix = pickle_prefix
-        self.init_images_hist(num_images)
+        self.init_data(num_images)
 
     def next_epoch(self):
         self.write()
         self.current_epoch += 1
 
-    def init_images_hist(self, num_images):
+    def init_data(self, num_images):
         # Store frequency of each image getting backpropped
         keys = range(num_images)
-        self.images_hist = dict(zip(keys, [0] * len(keys)))
-        image_id_pickle_dir = os.path.join(self.pickle_dir, "image_id_hist")
-        self.image_id_pickle_file = os.path.join(image_id_pickle_dir,
+        self.data = dict(zip(keys, [0] * len(keys)))
+        data_pickle_dir = os.path.join(self.pickle_dir, "image_id_hist")
+        self.data_pickle_file = os.path.join(data_pickle_dir,
                                                  "{}_images_hist".format(self.pickle_prefix))
         # Make images hist pickle path
-        if not os.path.exists(image_id_pickle_dir):
-            os.mkdir(image_id_pickle_dir)
+        if not os.path.exists(data_pickle_dir):
+            os.mkdir(data_pickle_dir)
 
-    def update_images_hist(self, image_ids):
+    def update_data(self, image_ids):
         for chosen_id in image_ids:
-            self.images_hist[chosen_id] += 1
+            self.data[chosen_id] += 1
 
     def handle_backward_batch(self, batch):
         ids = [example.image_id.item() for example in batch if example.select]
-        self.update_images_hist(ids)
+        self.update_data(ids)
 
     def write(self):
-        latest_file = "{}.pickle".format(self.image_id_pickle_file)
+        latest_file = "{}.pickle".format(self.data_pickle_file)
         with open(latest_file, "wb") as handle:
             print(latest_file)
-            pickle.dump(self.images_hist, handle, protocol=pickle.HIGHEST_PROTOCOL)
+            pickle.dump(self.data, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
-        epoch_file = "{}.epoch_{}.pickle".format(self.image_id_pickle_file,
+        epoch_file = "{}.epoch_{}.pickle".format(self.data_pickle_file,
                                                  self.current_epoch)
         if self.current_epoch % 10 == 0:
             with open(epoch_file, "wb") as handle:
                 print(epoch_file)
-                pickle.dump(self.images_hist, handle, protocol=pickle.HIGHEST_PROTOCOL)
+                pickle.dump(self.data, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 class Logger(object):
@@ -510,7 +550,13 @@ class Backpropper(object):
 
 
 class Trainer(object):
-    def __init__(self, device, net, selector, backpropper, batch_size, max_num_backprops=float('inf')):
+    def __init__(self,
+                 device,
+                 net,
+                 selector,
+                 backpropper,
+                 batch_size,
+                 max_num_backprops=float('inf')):
         self.device = device
         self.net = net
         self.selector = selector
@@ -520,7 +566,7 @@ class Trainer(object):
         self.forward_pass_handlers = []
         self.backward_pass_handlers = []
         self.global_num_backpropped = 0
-        self.max_num_backprops = 0
+        self.max_num_backprops = max_num_backprops
         self.on_backward_pass(self.update_num_backpropped)
 
     def update_num_backpropped(self, batch):
@@ -540,6 +586,7 @@ class Trainer(object):
         for handler in self.backward_pass_handlers:
             handler(batch)
 
+    @property
     def stopped(self):
         return self.global_num_backpropped >= self.max_num_backprops
 
@@ -714,7 +761,7 @@ def main():
                         help='directory for pickles')
     parser.add_argument('--pickle-prefix', default="stats",
                         help='file prefix for pickles')
-    parser.add_argument('--max-num-backprops', type=int, default=None, metavar='N',
+    parser.add_argument('--max-num-backprops', type=int, default=float('inf'), metavar='N',
                         help='how many images to backprop total')
 
     parser.add_argument('--sampling-strategy', default="recenter", metavar='N',
@@ -833,16 +880,19 @@ def main():
     image_id_hist_logger = ImageIdHistLogger(args.pickle_dir,
                                              args.pickle_prefix,
                                              len(trainset))
+    probability_by_image_logger = ProbabilityByImageLogger(args.pickle_dir,
+                                                           args.pickle_prefix)
     trainer.on_forward_pass(logger.handle_forward_batch)
     trainer.on_backward_pass(logger.handle_backward_batch)
     trainer.on_backward_pass(image_id_hist_logger.handle_backward_batch)
+    trainer.on_backward_pass(probability_by_image_logger.handle_backward_batch)
     stopped = False
 
     for epoch in range(start_epoch, start_epoch+500):
 
         if stopped: break
 
-        for partition in partitions[0:1]:
+        for partition in partitions:
             trainloader = torch.utils.data.DataLoader(partition, batch_size=args.batch_size, shuffle=True, num_workers=2)
             test(args, net, testloader, device, epoch, state)
 
@@ -857,7 +907,7 @@ def main():
             elif args.sb_strategy == "sampling" and epoch >= args.sb_start_epoch:
                 trainer.train(trainloader)
                 logger.next_partition()
-                if trainer.stopped():
+                if trainer.stopped:
                     stopped = True
                     break
                 continue
@@ -877,6 +927,7 @@ def main():
                     state)
         logger.next_epoch()
         image_id_hist_logger.next_epoch()
+        probability_by_image_logger.next_epoch()
 
         # Write out summary statistics
         state.write_summaries()
