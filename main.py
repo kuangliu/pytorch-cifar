@@ -495,7 +495,7 @@ class Backpropper(object):
         self.total_num_examples = 0
 
     def update_sum_probabilities(self, batch):
-        probabilities = [example.select_probability for example in batch]
+        probabilities = [example.select_probability.to(self.device) for example in batch]
         self.sum_select_probabilities += sum(probabilities)
         self.total_num_examples += len(probabilities)
 
@@ -941,7 +941,10 @@ def main():
         if stopped: break
 
         for partition in partitions:
-            trainloader = torch.utils.data.DataLoader(partition, batch_size=args.batch_size, shuffle=True, num_workers=2)
+            trainloader = torch.utils.data.DataLoader(partition,
+                                                      batch_size=args.batch_size,
+                                                      shuffle=True,
+                                                      num_workers=2)
             test(args, net, testloader, device, epoch, state, logger)
 
             trainer.train(trainloader)
