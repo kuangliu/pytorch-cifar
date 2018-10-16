@@ -232,69 +232,6 @@ def train_topk(args,
 
     return
 
-# Training
-def train_baseline(args,
-               net,
-               trainloader,
-               device,
-               optimizer,
-               epoch,
-               state):
-
-    print('\nEpoch: %d in train_baseline' % epoch)
-    net.train()
-    train_loss = 0
-    correct = 0
-    total = 0
-
-    losses_pool = []
-    num_backprop = 0
-
-    for batch_idx, (data, targets, image_id) in enumerate(trainloader):
-
-        data, targets = data.to(device), targets.to(device)
-
-        optimizer.zero_grad()
-        outputs = net(data)
-        loss = nn.CrossEntropyLoss()(outputs, targets)
-        loss.backward()
-        optimizer.step()
-
-        losses_pool.append(loss.item())
-        num_backprop += len(data)
-        state.num_images_backpropped += len(data)
-
-
-        # Update stats
-        state.update_images_hist([t.item() for t in image_id])
-        state.update_batch_stats(pool_losses = losses_pool, 
-                                 chosen_losses = losses_pool,
-                                 pool_sps = [],
-                                 chosen_sps = [])
-
-        losses_pool = []
-
-        _, predicted = outputs.max(1)
-        total += targets.size(0)
-        correct += predicted.eq(targets).sum().item()
-
-        if batch_idx % args.log_interval == 0:
-            print('train_debug,{},{},{},{:.6f},{:.6f},{},{:.6f}'.format(
-                        epoch,
-                        state.num_images_backpropped,
-                        state.num_images_skipped,
-                        loss.item(),
-                        train_loss / float(num_backprop),
-                        time.time(),
-                        100.*correct/total))
-
-        # Stop epoch rightaway if we've exceeded maximum number of epochs
-        if args.max_num_backprops:
-            if args.max_num_backprops <= state.num_images_backpropped:
-                return num_backprop
-
-    return
-
 
 class Example(object):
     # TODO: Add ExampleCollection class
