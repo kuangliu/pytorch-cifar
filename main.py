@@ -107,11 +107,11 @@ class State:
             snapshot["pool_sps"] = get_stat(pool_sps)
         self.batch_stats.append(snapshot)
 
-    def update_target_confidences(self, epoch, confidences):
+    def update_target_confidences(self, epoch, confidences, num_images_backpropped):
         if epoch not in self.target_confidences.keys():
             self.target_confidences[epoch] = {"confidences": []}
         self.target_confidences[epoch]["confidences"] += confidences
-        self.target_confidences[epoch]["num_backpropped"] = self.num_images_backpropped
+        self.target_confidences[epoch]["num_backpropped"] = num_images_backpropped
 
     def write_summaries(self):
         #with open(self.image_id_pickle_file, "wb") as handle:
@@ -430,7 +430,9 @@ def test(args,
             targets_array = targets.cpu().numpy()
             outputs_array = softmax_outputs.cpu().numpy()
             confidences = [o[t] for t, o in zip(targets_array, outputs_array)]
-            state.update_target_confidences(epoch, confidences[:10])
+            state.update_target_confidences(epoch,
+                                            confidences[:10],
+                                            logger.global_num_backpropped)
 
     test_loss /= len(testloader.dataset)
     print('test_debug,{},{},{},{:.6f},{:.6f},{}'.format(
