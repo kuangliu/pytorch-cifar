@@ -651,7 +651,7 @@ def main():
         image_id_hist_logger.next_epoch()
         probability_by_image_logger.next_epoch()
         selector.next_epoch()
-        backpropper = backpropper.next_epoch()
+        backpropper.next_epoch()
         state.write_summaries() # Writes test loggers
 
 
