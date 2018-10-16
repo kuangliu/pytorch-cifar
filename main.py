@@ -587,16 +587,23 @@ def main():
     recenter = args.sampling_strategy == "recenter"
 
     probability_calculator = lib.selectors.SelectProbabiltyCalculator(args.sampling_min,
-                                                        len(classes),
-                                                        device,
-                                                        square=square,
-                                                        translate=translate)
+                                                                      len(classes),
+                                                                      device,
+                                                                      square=square,
+                                                                      translate=translate)
     if args.sb_strategy == "sampling":
-        final_selector = lib.selectors.SamplingSelector(args.batch_size, probability_calculator)
+        final_selector = lib.selectors.SamplingSelector(probability_calculator)
         final_backpropper = lib.backproppers.SamplingBackpropper(device,
-                                                net,
-                                                optimizer,
-                                                recenter=recenter)
+                                                                 net,
+                                                                 optimizer,
+                                                                 recenter=recenter)
+    elif args.sb_strategy == "deterministic":
+        final_selector = lib.selectors.DeterministicSamplingSelector(probability_calculator,
+                                                                     initial_sum=0)
+        final_backpropper = lib.backproppers.SamplingBackpropper(device,
+                                                                 net,
+                                                                 optimizer,
+                                                                 recenter=recenter)
     elif args.sb_strategy == "baseline":
         final_selector = lib.selectors.BaselineSelector()
         final_backpropper = lib.backproppers.BaselineBackpropper(device,
@@ -606,11 +613,15 @@ def main():
         print("Use sb-strategy in {sampling, baseline}")
         exit()
 
-    selector = lib.selectors.PrimedSelector(lib.selectors.BaselineSelector(), final_selector, args.sb_start_epoch)
+    selector = lib.selectors.PrimedSelector(lib.selectors.BaselineSelector(),
+                                            final_selector,
+                                            args.sb_start_epoch)
 
-    backpropper = lib.backproppers.PrimedBackpropper(lib.backproppers.BaselineBackpropper(device, net, optimizer),
-                                    final_backpropper,
-                                    args.sb_start_epoch)
+    backpropper = lib.backproppers.PrimedBackpropper(lib.backproppers.BaselineBackpropper(device,
+                                                                                          net,
+                                                                                          optimizer),
+                                                     final_backpropper,
+                                                     args.sb_start_epoch)
 
     trainer = Trainer(device,
                       net,
@@ -620,10 +631,10 @@ def main():
                       max_num_backprops=args.max_num_backprops)
     logger = lib.loggers.Logger(log_interval = args.log_interval)
     image_id_hist_logger = lib.loggers.ImageIdHistLogger(args.pickle_dir,
-                                             args.pickle_prefix,
-                                             len(trainset))
+                                                         args.pickle_prefix,
+                                                         len(trainset))
     probability_by_image_logger = lib.loggers.ProbabilityByImageLogger(args.pickle_dir,
-                                                           args.pickle_prefix)
+                                                                       args.pickle_prefix)
     trainer.on_forward_pass(logger.handle_forward_batch)
     trainer.on_backward_pass(logger.handle_backward_batch)
     trainer.on_backward_pass(image_id_hist_logger.handle_backward_batch)
