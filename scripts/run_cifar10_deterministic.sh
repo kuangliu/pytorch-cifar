@@ -1,5 +1,8 @@
 set -x
 
+ulimit -n 2048
+ulimit -a
+
 EXP_PREFIX=$1
 SAMPLING_STRATEGY=$2
 NET=$3

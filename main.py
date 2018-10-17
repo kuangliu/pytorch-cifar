@@ -1,6 +1,7 @@
 '''Train CIFAR10 with PyTorch.'''
 from __future__ import print_function
 
+#import cv2
 import cPickle as pickle
 import pprint as pp
 import numpy as np
@@ -446,8 +447,8 @@ def main():
     # Data
     print('==> Preparing data..')
     transform_train = transforms.Compose([
-        transforms.RandomCrop(32, padding=4),
-        transforms.RandomHorizontalFlip(),
+        #transforms.RandomCrop(32, padding=4),
+        #transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
     ])
@@ -538,7 +539,7 @@ def main():
                                                                  recenter=recenter)
     elif args.sb_strategy == "deterministic":
         final_selector = lib.selectors.DeterministicSamplingSelector(probability_calculator,
-                                                                     initial_sum=0)
+                                                                     initial_sum=1)
         final_backpropper = lib.backproppers.SamplingBackpropper(device,
                                                                  net,
                                                                  optimizer,
@@ -585,6 +586,16 @@ def main():
         if stopped: break
 
         for partition in partitions:
+            '''
+            print(partition[0][0].data)
+            print(partition[0][0].data.numpy())
+            img = partition[0][0].data.numpy()
+            #imgplot = plt.imshow(img)
+            img = np.rollaxis(img, 0, 3)
+            print(img.shape)
+            cv2.imwrite('data/tmp.png',img)
+            exit()
+            '''
             trainloader = torch.utils.data.DataLoader(partition,
                                                       batch_size=args.batch_size,
                                                       shuffle=True,
