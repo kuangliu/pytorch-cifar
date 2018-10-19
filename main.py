@@ -12,8 +12,6 @@ import torch.optim as optim
 import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
 
-import torchvision
-import torchvision.transforms as transforms
 
 import os
 import argparse
@@ -22,6 +20,7 @@ from models import *
 from utils import progress_bar
 
 import lib.backproppers
+import lib.datasets
 import lib.loggers
 import lib.selectors
 
@@ -415,6 +414,8 @@ def main():
                         help='how many batches to wait before logging training status')
     parser.add_argument('--net', default="resnet", metavar='N',
                         help='which network architecture to train')
+    parser.add_argument('--dataset', default="cifar10", metavar='N',
+                        help='which network architecture to train')
 
     parser.add_argument('--sb-strategy', default="topk", metavar='N',
                         help='Selective backprop strategy among {topk, sampling}')
@@ -443,22 +444,6 @@ def main():
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     best_acc = 0  # best test accuracy
     start_epoch = 0  # start from epoch 0 or last checkpoint epoch
-
-    # Data
-    print('==> Preparing data..')
-    transform_train = transforms.Compose([
-        #transforms.RandomCrop(32, padding=4),
-        #transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-    ])
-
-    transform_test = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-    ])
-
-    classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
     # Model
     print('==> Building model..')
@@ -503,23 +488,13 @@ def main():
         start_epoch = checkpoint['epoch']
 
     optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=args.decay)
-    #optimizer = optim.Adam(net.parameters(), lr=args.lr, weight_decay=args.decay)
+    if args.dataset == "cifar10":
+        dataset = lib.datasets.CIFAR10(net, args.test_batch_size, args.pool_size * 100)
+    else:
+        print("Only cifar10 is implemented")
+        exit()
 
-    testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=False, transform=transform_test)
-    testloader = torch.utils.data.DataLoader(testset, batch_size=args.test_batch_size, shuffle=False, num_workers=2)
-
-    ## Selective backprop setup ##
-
-    assert(args.pool_size >= args.top_k)
-
-    # Partition training set to get more test datapoints
-    trainset = torchvision.datasets.CIFAR10(root='./data', train=True, download=False, transform=transform_train)
-    trainset = [t + (i,) for i, t in enumerate(trainset)]
-    chunk_size = args.pool_size * 100
-    partitions = [trainset[i:i + chunk_size] for i in xrange(0, len(trainset), chunk_size)]
-
-    state = State(len(trainset), args.pickle_dir, args.pickle_prefix)
-
+    state = State(dataset.num_training_images, args.pickle_dir, args.pickle_prefix)
 
     ## Setup Trainer ##
     square = args.sampling_strategy in ["square", "translate", "recenter"]
@@ -527,7 +502,7 @@ def main():
     recenter = args.sampling_strategy == "recenter"
 
     probability_calculator = lib.selectors.SelectProbabiltyCalculator(args.sampling_min,
-                                                                      len(classes),
+                                                                      len(dataset.classes),
                                                                       device,
                                                                       square=square,
                                                                       translate=translate)
@@ -541,13 +516,13 @@ def main():
         final_selector = lib.selectors.DeterministicSamplingSelector(probability_calculator,
                                                                      initial_sum=1)
         final_backpropper = lib.backproppers.SamplingBackpropper(device,
-                                                                 net,
+                                                                 dataset.model,
                                                                  optimizer,
                                                                  recenter=recenter)
     elif args.sb_strategy == "baseline":
         final_selector = lib.selectors.BaselineSelector()
         final_backpropper = lib.backproppers.BaselineBackpropper(device,
-                                                net,
+                                                dataset.model,
                                                 optimizer)
     else:
         print("Use sb-strategy in {sampling, baseline}")
@@ -558,13 +533,13 @@ def main():
                                             args.sb_start_epoch)
 
     backpropper = lib.backproppers.PrimedBackpropper(lib.backproppers.BaselineBackpropper(device,
-                                                                                          net,
+                                                                                          dataset.model,
                                                                                           optimizer),
                                                      final_backpropper,
                                                      args.sb_start_epoch)
 
     trainer = Trainer(device,
-                      net,
+                      dataset.model,
                       selector,
                       backpropper,
                       args.batch_size,
@@ -572,7 +547,7 @@ def main():
     logger = lib.loggers.Logger(log_interval = args.log_interval)
     image_id_hist_logger = lib.loggers.ImageIdHistLogger(args.pickle_dir,
                                                          args.pickle_prefix,
-                                                         len(trainset))
+                                                         dataset.num_training_images)
     probability_by_image_logger = lib.loggers.ProbabilityByImageLogger(args.pickle_dir,
                                                                        args.pickle_prefix)
     trainer.on_forward_pass(logger.handle_forward_batch)
@@ -581,26 +556,17 @@ def main():
     trainer.on_backward_pass(probability_by_image_logger.handle_backward_batch)
     stopped = False
 
+
     for epoch in range(start_epoch, start_epoch+500):
 
         if stopped: break
 
-        for partition in partitions:
-            '''
-            print(partition[0][0].data)
-            print(partition[0][0].data.numpy())
-            img = partition[0][0].data.numpy()
-            #imgplot = plt.imshow(img)
-            img = np.rollaxis(img, 0, 3)
-            print(img.shape)
-            cv2.imwrite('data/tmp.png',img)
-            exit()
-            '''
+        for partition in dataset.partitions:
             trainloader = torch.utils.data.DataLoader(partition,
                                                       batch_size=args.batch_size,
                                                       shuffle=True,
                                                       num_workers=2)
-            test(args, net, testloader, device, epoch, state, logger)
+            test(args, dataset.model, dataset.testloader, device, epoch, state, logger)
 
             trainer.train(trainloader)
             logger.next_partition()
