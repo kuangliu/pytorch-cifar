@@ -404,6 +404,7 @@ def main():
 
     parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
     parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
+    parser.add_argument('--momentum', default=0.9, type=float, help='learning rate')
     parser.add_argument('--decay', default=5e-4, type=float, help='decay')
     parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
     parser.add_argument('--batch-size', type=int, default=1, metavar='N',
@@ -487,12 +488,15 @@ def main():
         best_acc = checkpoint['acc']
         start_epoch = checkpoint['epoch']
 
-    optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=args.decay)
     if args.dataset == "cifar10":
         dataset = lib.datasets.CIFAR10(net, args.test_batch_size, args.pool_size * 100)
+    elif args.dataset == "mnist":
+        dataset = lib.datasets.MNIST(device, args.test_batch_size, args.pool_size * 100)
     else:
         print("Only cifar10 is implemented")
         exit()
+
+    optimizer = optim.SGD(dataset.model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=args.decay)
 
     state = State(dataset.num_training_images, args.pickle_dir, args.pickle_prefix)
 
