@@ -46,30 +46,7 @@ class State:
         self.pickle_dir = pickle_dir
         self.pickle_prefix = pickle_prefix
 
-        self.init_images_hist(num_images)
-        self.init_batch_stats()
         self.init_target_confidences()
-
-    def init_images_hist(self, num_images):
-        # Store frequency of each image getting backpropped
-        keys = range(num_images)
-        self.images_hist = dict(zip(keys, [0] * len(keys)))
-        image_id_pickle_dir = os.path.join(self.pickle_dir, "image_id_hist")
-        self.image_id_pickle_file = os.path.join(image_id_pickle_dir,
-                                                 "{}_images_hist.pickle".format(self.pickle_prefix))
-        # Make images hist pickle path
-        if not os.path.exists(image_id_pickle_dir):
-            os.mkdir(image_id_pickle_dir)
-
-    def init_batch_stats(self):
-        self.batch_stats = []
-
-        # Make batch stats pickle path
-        batch_stats_pickle_dir = os.path.join(self.pickle_dir, "batch_stats")
-        if not os.path.exists(batch_stats_pickle_dir):
-            os.mkdir(batch_stats_pickle_dir)
-        self.batch_stats_pickle_file = os.path.join(batch_stats_pickle_dir,
-                                                    "{}_batch_stats.pickle".format(self.pickle_prefix))
 
     def init_target_confidences(self):
         self.target_confidences = {}
@@ -82,31 +59,6 @@ class State:
         if not os.path.exists(target_confidences_pickle_dir):
             os.mkdir(target_confidences_pickle_dir)
 
-    def update_images_hist(self, image_ids):
-        for chosen_id in image_ids:
-            self.images_hist[chosen_id] += 1
-
-    def update_batch_stats(self, pool_losses=None,
-                                 chosen_losses=None,
-                                 pool_sps=None,
-                                 chosen_sps=None):
-        '''
-        batch_stats = [{'chosen_losses': {stat},
-                       'pool_losses': {stat}}]
-        '''
-        snapshot = {}
-        snapshot["num_backpropped"] = self.num_images_backpropped
-        snapshot["num_skipped"] = self.num_images_skipped
-        if chosen_losses:
-            snapshot["chosen_losses"] = get_stat(chosen_losses)
-        if pool_losses:
-            snapshot["pool_losses"] = get_stat(pool_losses)
-        if chosen_sps:
-            snapshot["chosen_sps"] = get_stat(chosen_sps)
-        if pool_sps:
-            snapshot["pool_sps"] = get_stat(pool_sps)
-        self.batch_stats.append(snapshot)
-
     def update_target_confidences(self, epoch, confidences, num_images_backpropped):
         if epoch not in self.target_confidences.keys():
             self.target_confidences[epoch] = {"confidences": []}
@@ -114,17 +66,9 @@ class State:
         self.target_confidences[epoch]["num_backpropped"] = num_images_backpropped
 
     def write_summaries(self):
-        #with open(self.image_id_pickle_file, "wb") as handle:
-        #    print(self.image_id_pickle_file)
-        #    pickle.dump(self.images_hist, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
         with open(self.target_confidences_pickle_file, "wb") as handle:
             print(self.target_confidences_pickle_file)
             pickle.dump(self.target_confidences, handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-        # with open(self.batch_stats_pickle_file, "wb") as handle:
-        #     print(self.batch_stats_pickle_file)
-        #     pickle.dump(self.batch_stats, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
     def update_sum_sp(self, sp):
         self.num_images_seen += 1
@@ -135,102 +79,6 @@ class State:
         if self.num_images_seen == 0:
             return 1
         return self.sum_sp / float(self.num_images_seen)
-
-
-# Training
-def train_topk(args,
-               net,
-               trainloader,
-               device,
-               optimizer,
-               epoch,
-               state):
-
-    print('\nEpoch: %d in train_topk' % epoch)
-    net.train()
-    train_loss = 0
-    correct = 0
-    total = 0
-
-    losses_pool = []
-    data_pool = []
-    targets_pool = []
-    ids_pool = []
-    num_backprop = 0
-    num_skipped = 0
-    loss_reduction = None
-
-    for batch_idx, (data, targets, image_id) in enumerate(trainloader):
-
-        data, targets = data.to(device), targets.to(device)
-
-        output = net(data)
-        loss = nn.CrossEntropyLoss(reduce=True)(output, targets)
-
-        losses_pool.append(loss.item())
-        data_pool.append(data)
-        targets_pool.append(targets)
-        ids_pool.append(image_id.item())
-
-        if len(losses_pool) == args.pool_size:
-
-            # Choose frames from pool to backprop
-            indices = np.array(losses_pool).argsort()[-args.top_k:]
-            chosen_data = [data_pool[i] for i in indices]
-            chosen_targets = [targets_pool[i] for i in indices]
-            chosen_ids = [ids_pool[i] for i in indices]
-            chosen_losses = [losses_pool[i] for i in indices]
-            state.num_images_skipped += len(data_pool) - len(chosen_data)
-
-            data_batch = torch.stack(chosen_data, dim=1)[0]
-            targets_batch = torch.cat(chosen_targets)
-            output_batch = net(data_batch) # redundant
-
-            # Update stats
-            state.update_images_hist(chosen_ids)
-            state.update_batch_stats(pool_losses = losses_pool, 
-                                     chosen_losses = chosen_losses,
-                                     pool_sps = [],
-                                     chosen_sps = [])
-
-            # Note: This will only work for batch size of 1
-            loss_reduction = nn.CrossEntropyLoss(reduce=True)(output_batch, targets_batch)
-
-            optimizer.zero_grad()
-            loss_reduction.backward()
-            optimizer.step()
-            train_loss += loss_reduction.item()
-            num_backprop += len(chosen_data)
-            state.num_images_backpropped += len(chosen_data)
-
-            losses_pool = []
-            data_pool = []
-            targets_pool = []
-            ids_pool = []
-
-            output = output_batch
-            targets = targets_batch
-
-        _, predicted = output.max(1)
-        total += targets.size(0)
-        correct += predicted.eq(targets).sum().item()
-
-        if batch_idx % args.log_interval == 0 and loss_reduction is not None:
-            print('train_debug,{},{},{},{:.6f},{:.6f},{},{:.6f}'.format(
-                        epoch,
-                        state.num_images_backpropped,
-                        state.num_images_skipped,
-                        loss_reduction.item(),
-                        train_loss / float(num_backprop),
-                        time.time(),
-                        100.*correct/total))
-
-        # Stop epoch rightaway if we've exceeded maximum number of epochs
-        if args.max_num_backprops:
-            if args.max_num_backprops <= state.num_images_backpropped:
-                return num_backprop
-
-    return
 
 
 class Example(object):
@@ -418,8 +266,8 @@ def main():
     parser.add_argument('--dataset', default="cifar10", metavar='N',
                         help='which network architecture to train')
 
-    parser.add_argument('--sb-strategy', default="topk", metavar='N',
-                        help='Selective backprop strategy among {topk, sampling}')
+    parser.add_argument('--sb-strategy', default="sampling", metavar='N',
+                        help='Selective backprop strategy among {baseline, deterministic, sampling}')
     parser.add_argument('--sb-start-epoch', type=int, default=0,
                         help='epoch to start selective backprop')
     parser.add_argument('--pickle-dir', default="/tmp/",
@@ -433,12 +281,6 @@ def main():
                         help='Selective backprop sampling strategy among {recenter, translate, nosquare, square}')
     parser.add_argument('--sampling-min', type=float, default=0.05,
                         help='Minimum sampling rate for sampling strategy')
-
-    parser.add_argument('--top-k', type=int, default=8, metavar='N',
-                        help='how many images to backprop per batch')
-    parser.add_argument('--pool-size', type=int, default=16, metavar='N',
-                        help='how many images to backprop per batch')
-
 
     args = parser.parse_args()
 
@@ -489,9 +331,9 @@ def main():
         start_epoch = checkpoint['epoch']
 
     if args.dataset == "cifar10":
-        dataset = lib.datasets.CIFAR10(net, args.test_batch_size, args.pool_size * 100)
+        dataset = lib.datasets.CIFAR10(net, args.test_batch_size, args.batch_size * 100)
     elif args.dataset == "mnist":
-        dataset = lib.datasets.MNIST(device, args.test_batch_size, args.pool_size * 100)
+        dataset = lib.datasets.MNIST(device, args.test_batch_size, args.batch_size * 100)
     else:
         print("Only cifar10 is implemented")
         exit()
@@ -513,7 +355,7 @@ def main():
     if args.sb_strategy == "sampling":
         final_selector = lib.selectors.SamplingSelector(probability_calculator)
         final_backpropper = lib.backproppers.SamplingBackpropper(device,
-                                                                 net,
+                                                                 dataset.model,
                                                                  optimizer,
                                                                  recenter=recenter)
     elif args.sb_strategy == "deterministic":
@@ -529,7 +371,7 @@ def main():
                                                 dataset.model,
                                                 optimizer)
     else:
-        print("Use sb-strategy in {sampling, baseline}")
+        print("Use sb-strategy in {sampling, deterministic, baseline}")
         exit()
 
     selector = lib.selectors.PrimedSelector(lib.selectors.BaselineSelector(),
