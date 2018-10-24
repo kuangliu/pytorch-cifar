@@ -84,7 +84,7 @@ class ImageIdHistLogger(object):
 
         epoch_file = "{}.epoch_{}.pickle".format(self.data_pickle_file,
                                                  self.current_epoch)
-        if self.current_epoch % 10 == 0:
+        if self.current_epoch % 100 == 0:
             with open(epoch_file, "wb") as handle:
                 print(epoch_file)
                 pickle.dump(self.data, handle, protocol=pickle.HIGHEST_PROTOCOL)
