@@ -51,7 +51,7 @@ classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship'
 # Model
 print('==> Building model..')
 # net = VGG('VGG19')
-net = ResNet18()
+# net = ResNet18()
 # net = PreActResNet18()
 # net = GoogLeNet()
 # net = DenseNet121()
@@ -61,6 +61,7 @@ net = ResNet18()
 # net = DPN92()
 # net = ShuffleNetG2()
 # net = SENet18()
+net = ShuffleNetV2(0.5)
 net = net.to(device)
 if device == 'cuda':
     net = torch.nn.DataParallel(net)
