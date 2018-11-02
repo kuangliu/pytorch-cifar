@@ -6,6 +6,7 @@ from pnasnet import *
 from densenet import *
 from googlenet import *
 from shufflenet import *
+from shufflenetv2 import *
 from resnet import *
 from resnext import *
 from preact_resnet import *
