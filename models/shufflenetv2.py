@@ -100,13 +100,16 @@ class ShuffleNetV2(nn.Module):
         num_blocks = configs[net_size]['num_blocks']
 
         self.conv1 = nn.Conv2d(3, 24, kernel_size=3,
-                               stride=2, padding=1, bias=False)
+                               stride=1, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(24)
         self.in_channels = 24
         self.layer1 = self._make_layer(out_channels[0], num_blocks[0])
         self.layer2 = self._make_layer(out_channels[1], num_blocks[1])
         self.layer3 = self._make_layer(out_channels[2], num_blocks[2])
-        self.linear = nn.Linear(out_channels[2], 10)
+        self.conv2 = nn.Conv2d(out_channels[2], out_channels[3],
+                               kernel_size=1, stride=1, padding=0, bias=False)
+        self.bn2 = nn.BatchNorm2d(out_channels[3])
+        self.linear = nn.Linear(out_channels[3], 10)
 
     def _make_layer(self, out_channels, num_blocks):
         layers = [DownBlock(self.in_channels, out_channels)]
@@ -121,7 +124,8 @@ class ShuffleNetV2(nn.Module):
         out = self.layer1(out)
         out = self.layer2(out)
         out = self.layer3(out)
-        out = F.avg_pool2d(out, 2)
+        out = F.relu(self.bn2(self.conv2(out)))
+        out = F.avg_pool2d(out, 4)
         out = out.view(out.size(0), -1)
         out = self.linear(out)
         return out
@@ -129,20 +133,20 @@ class ShuffleNetV2(nn.Module):
 
 configs = {
     0.5: {
-        'out_channels': (48, 96, 192),
+        'out_channels': (48, 96, 192, 1024),
         'num_blocks': (3, 7, 3)
     },
 
     1: {
-        'out_channels': (116, 232, 464),
+        'out_channels': (116, 232, 464, 1024),
         'num_blocks': (3, 7, 3)
     },
     1.5: {
-        'out_channels': (176, 352, 704),
+        'out_channels': (176, 352, 704, 1024),
         'num_blocks': (3, 7, 3)
     },
     2: {
-        'out_channels': (224, 488, 976),
+        'out_channels': (224, 488, 976, 2048),
         'num_blocks': (3, 7, 3)
     }
 }
