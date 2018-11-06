@@ -1,4 +1,4 @@
-# Train CIFAR10 with PyTorch
+#Train CIFAR10 with PyTorch
 
 I'm playing with [PyTorch](http://pytorch.org/) on the CIFAR10 dataset.
 
@@ -25,6 +25,9 @@ Cons:
 | [DenseNet121](https://arxiv.org/abs/1608.06993)       | 95.04%      |
 | [PreActResNet18](https://arxiv.org/abs/1603.05027)    | 95.11%      |
 | [DPN92](https://arxiv.org/abs/1707.01629)             | 95.16%      |
+| [DCGAN'S netD] | 96% |
+
+The acc for DCGAN's netD version looks strange, but i validate in `test.py`. **Hope anyone can help me verify it!**
 
 ## Learning rate adjustment
 I manually change the `lr` during training:
