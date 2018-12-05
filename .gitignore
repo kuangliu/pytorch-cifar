@@ -1,3 +1,6 @@
 data/
 checkpoint/
 __pycache__/
+
+# for pycharm
+.idea/
