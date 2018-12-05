@@ -26,15 +26,18 @@ if __name__ == '__main__':
     testset = torchvision.datasets.CIFAR10(root='../data', train=False, download=True, transform=transform_test)
     testloader = torch.utils.data.DataLoader(testset, batch_size=pic_num, shuffle=True, num_workers=2)
 
-    # net, _ = loadnet(1)
+    net, _ = loadnet(1)
 
-    # net.eval()  # 变为测试模式, 对dropout和batch normalization有影响
-    # device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    net.eval()  # 变为测试模式, 对dropout和batch normalization有影响
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
     to_pil_image = transforms.ToPILImage()
     with torch.no_grad():  # 运算不需要进行求导, 提高性能
         (inputs, targets) = list(testloader)[0]
+        outputs = net(inputs)
+        _, predicted = outputs.max(1)
         for i in range(pic_num):
-            print(classes[targets[i]])  # 显示label
+            print("正确类别: %s, 计算类别: %s" % (
+                classes[targets[i]], classes[predicted[i]]))  # 显示label
             img = inputs[i].new(*inputs[i].size())
             img[0, :, :] = inputs[i][0, :, :] * std[0] + mean[0]
             img[1, :, :] = inputs[i][1, :, :] * std[1] + mean[1]
