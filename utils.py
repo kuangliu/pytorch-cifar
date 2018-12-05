@@ -5,6 +5,7 @@
 '''
 import os
 import sys
+import platform
 import time
 import math
 
@@ -42,8 +43,24 @@ def init_params(net):
                 init.constant(m.bias, 0)
 
 
-_, term_width = os.popen('stty size', 'r').read().split()
-term_width = int(term_width)
+sysstr = platform.system()
+if (sysstr == "Windows"):
+    from ctypes import windll, create_string_buffer
+    # stdin handle is -10
+    # stdout handle is -11
+    # stderr handle is -12
+    h = windll.kernel32.GetStdHandle(-12)
+    csbi = create_string_buffer(22)
+    res = windll.kernel32.GetConsoleScreenBufferInfo(h, csbi)
+    if res:
+        import struct
+        (bufx, bufy, curx, cury, wattr, left, top, right, bottom, maxx, maxy) = struct.unpack("hhhhHhhhhhh", csbi.raw)
+        term_width = right - left + 1
+    else:
+        term_width = 100  # can't determine actual size - return default values
+else:
+    _, term_width = os.popen('stty size', 'r').read().split()
+    term_width = int(term_width)
 
 TOTAL_BAR_LENGTH = 65.
 last_time = time.time()

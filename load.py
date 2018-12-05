@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import torch
 import torch.backends.cudnn as cudnn
 
