@@ -29,10 +29,13 @@ if __name__ == '__main__':
     with torch.no_grad():  # 运算不需要进行求导, 提高性能
         for batch_idx, (inputs, targets) in enumerate(testloader):
             inputs, targets = inputs.to(device), targets.to(device)
+            print (inputs.size())
+            break
             outputs = net(inputs)
             _, predicted = outputs.max(1)
             total += targets.size(0)
             correct += predicted.eq(targets).sum().item()
-            progress_bar(batch_idx, len(testloader),
-                'Acc: %.3f%% (%d/%d)' % (correct / total * 100, correct, total))
-    print ('Caculated accuracy: %f%%' % correct / total)
+            print(batch_idx, len(testloader))
+            # progress_bar(batch_idx, len(testloader),
+            #     'Acc: %.3f%% (%d/%d)' % (correct / total * 100, correct, total))
+    print ('Caculated accuracy: %f%%' % (float(correct) / total))
