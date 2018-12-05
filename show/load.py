@@ -18,7 +18,7 @@ def loadnet(index):
     if index == 1:
         print('ckpt1: 用shufflenet v2训练的, 20个epoch, 80%, 主要用来试验一下代码之类的')
         net = ShuffleNetV2(1)
-        fname = './saved_ckpt/ckpt1'
+        fname = '../saved_ckpt/ckpt1'
     else:
         print('Invalid index')
         return

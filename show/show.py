@@ -4,7 +4,6 @@ import torch
 import torchvision
 import torchvision.transforms as transforms
 
-from utils import progress_bar
 from load import loadnet
 
 
@@ -16,7 +15,7 @@ if __name__ == '__main__':
         transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
     ])
 
-    testset = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=transform_test)
+    testset = torchvision.datasets.CIFAR10(root='../data', train=False, download=True, transform=transform_test)
     testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False, num_workers=2)
 
     [net, acc] = loadnet(1)
@@ -29,13 +28,9 @@ if __name__ == '__main__':
     with torch.no_grad():  # 运算不需要进行求导, 提高性能
         for batch_idx, (inputs, targets) in enumerate(testloader):
             inputs, targets = inputs.to(device), targets.to(device)
-            print (inputs.size())
-            break
             outputs = net(inputs)
             _, predicted = outputs.max(1)
             total += targets.size(0)
             correct += predicted.eq(targets).sum().item()
             print(batch_idx, len(testloader))
-            # progress_bar(batch_idx, len(testloader),
-            #     'Acc: %.3f%% (%d/%d)' % (correct / total * 100, correct, total))
     print ('Caculated accuracy: %f%%' % (float(correct) / total))
