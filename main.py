@@ -104,11 +104,11 @@ def train(epoch):
 
 def test(epoch):
     global best_acc
-    net.eval()
+    net.eval()    # 变为测试模式, 对dropout和batch normalization有影响
     test_loss = 0
     correct = 0
     total = 0
-    with torch.no_grad():
+    with torch.no_grad():    # 运算不需要进行求导, 提高性能
         for batch_idx, (inputs, targets) in enumerate(testloader):
             inputs, targets = inputs.to(device), targets.to(device)
             outputs = net(inputs)
