@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 
 import torch
-import torchvision
 import torchvision.transforms as transforms
 
+import tkinter.filedialog
 import matplotlib.pyplot as plt
 from PIL import Image
 
@@ -15,7 +15,7 @@ classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship'
 std = (0.2023, 0.1994, 0.2010)
 mean = (0.4914, 0.4822, 0.4465)
 
-fname = "../mydata/0.jpg"
+fname = tkinter.filedialog.askopenfilename()
 
 if __name__ == '__main__':
     # 原因: 如 https://blog.csdn.net/xiemanR/article/details/71700531
