@@ -33,6 +33,7 @@ if __name__ == '__main__':
     to_pil_image = transforms.ToPILImage()
     with torch.no_grad():  # 运算不需要进行求导, 提高性能
         (inputs, targets) = list(testloader)[0]
+        (inputs, targets) = inputs.to(device), targets.to(device)
         outputs = net(inputs)
         _, predicted = outputs.max(1)
         for i in range(pic_num):
