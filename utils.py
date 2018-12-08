@@ -59,8 +59,12 @@ if (sysstr == "Windows"):
     else:
         term_width = 100  # can't determine actual size - return default values
 else:
-    _, term_width = os.popen('stty size', 'r').read().split()
-    term_width = int(term_width)
+    try:
+        _, term_width = os.popen('stty size', 'r').read().split()
+        term_width = int(term_width)
+    except:
+        print("Cannot load stty information")
+        term_width = 100
 
 TOTAL_BAR_LENGTH = 65.
 last_time = time.time()
