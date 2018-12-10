@@ -30,6 +30,8 @@ if __name__ == '__main__':
 
     net.eval()  # 变为测试模式, 对dropout和batch normalization有影响
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    if torch.cuda.is_available():
+        net.cuda()
     to_pil_image = transforms.ToPILImage()
     with torch.no_grad():  # 运算不需要进行求导, 提高性能
         (inputs, targets) = list(testloader)[0]
@@ -43,6 +45,9 @@ if __name__ == '__main__':
             img[0, :, :] = inputs[i][0, :, :] * std[0] + mean[0]
             img[1, :, :] = inputs[i][1, :, :] * std[1] + mean[1]
             img[2, :, :] = inputs[i][2, :, :] * std[2] + mean[2]
-            img = to_pil_image(img)
+            if torch.cuda.is_available():
+                img = to_pil_image(img.cpu())
+            else:
+                img = to_pil_image(img)
             plt.imshow(img)
             plt.show()
