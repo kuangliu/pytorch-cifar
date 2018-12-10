@@ -3,6 +3,8 @@
 import torch
 import torch.backends.cudnn as cudnn
 
+import sys
+sys.path.append("..")
 from models import *
 
 
@@ -19,6 +21,10 @@ def loadnet(index):
         print('ckpt1: 用shufflenet v2训练的, 20个epoch, 80%, 主要用来试验一下代码之类的')
         net = ShuffleNetV2(1)
         fname = '../saved_ckpt/ckpt1'
+    elif index == 2:
+        print('ckpt2: 用shufflenet v2训练了两百个epoch, 80%, 貌似极限就是这样了')
+        net = ShuffleNetV2(1)
+        fname = '../saved_ckpt/ckpt2'
     else:
         print('Invalid index')
         return
