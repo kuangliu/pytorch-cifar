@@ -37,6 +37,8 @@ if __name__ == '__main__':
 
     net.eval()  # 变为测试模式, 对dropout和batch normalization有影响
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    if torch.cuda.is_available():
+        net.cuda()
     to_pil_image = transforms.ToPILImage()
     with torch.no_grad():  # 运算不需要进行求导, 提高性能
         inputs = inputs.to(device)
