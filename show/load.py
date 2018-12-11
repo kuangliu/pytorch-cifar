@@ -26,6 +26,10 @@ def loadnet(index):
         print('ckpt2: 用shufflenet v2训练了两百个epoch, 80%, 貌似极限就是这样了')
         net = ShuffleNetV2(1)
         fname = '../saved_ckpt/ckpt2'
+    elif index == 3:
+        print('ckpt3: 用DenseNet训练到三十个epoch左右开始卡住了, 87%')
+        net = DenseNet121()
+        fname = '../saved_ckpt/ckpt3'
     else:
         print('Invalid index')
         return
