@@ -30,6 +30,10 @@ def loadnet(index):
         print('ckpt3: 用DenseNet训练到三十个epoch左右开始卡住了, 87%')
         net = DenseNet121()
         fname = '../saved_ckpt/ckpt3'
+    elif index == 4:
+        print('ckpt4: DenseNet121, 88%')
+        net = DenseNet121()
+        fname = '../saved_ckpt/ckpt4'
     else:
         print('Invalid index')
         return
