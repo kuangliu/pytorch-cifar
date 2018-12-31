@@ -38,11 +38,15 @@ def loadnet(index):
         print('ckpt5: DPN92, 87%')
         net = DPN92()
         fname = '../saved_ckpt/ckpt5'
+    elif index == 6:
+        print('ckpt6: VGG16, 83%')
+        net = VGG('VGG16')
+        fname = '../saved_ckpt/ckpt6'
     else:
         print('Invalid index')
         return
 
-    if torch.cuda.is_available() == 'cuda':
+    if torch.cuda.is_available() == True:
         checkpoint = torch.load(fname)
         net = torch.nn.DataParallel(net)
         net.load_state_dict(checkpoint['net'])
@@ -57,6 +61,6 @@ def loadnet(index):
 
 
 if __name__ == '__main__':
-    [net, acc] = loadnet(1)
+    [net, acc] = loadnet(6)
     print ("Accuracy: %f" % acc)
     print (net)

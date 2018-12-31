@@ -52,7 +52,7 @@ classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship'
 
 # Model
 print('==> Building model..')
-# net = VGG('VGG19')
+net = VGG('VGG16')
 # net = ResNet18()
 # net = PreActResNet18()
 # net = GoogLeNet()
@@ -60,7 +60,7 @@ print('==> Building model..')
 # net = ResNeXt29_2x64d()
 # net = MobileNet()
 # net = MobileNetV2()
-net = DPN92()
+# net = DPN92()
 # net = ShuffleNetG2()
 # net = SENet18()
 # net = ShuffleNetV2(1)
@@ -76,10 +76,10 @@ if args.resume:
     checkpoint = torch.load('./checkpoint/ckpt.t7')
     net.load_state_dict(checkpoint['net'])
     best_acc = checkpoint['acc']
-    start_epoch = checkpoint['epoch']
+    start_epoch = checkpoint['epoch'] + 1
 
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
+optimizer = optim.Adam(net.parameters(), lr=args.lr,betas=(0.9,0.99),eps=1e-06, weight_decay=5e-4)
 
 # Training
 def train(epoch):
@@ -139,6 +139,6 @@ def test(epoch):
         best_acc = acc
 
 
-for epoch in range(start_epoch, start_epoch+200):
+for epoch in range(start_epoch, 61):
     train(epoch)
     test(epoch)
