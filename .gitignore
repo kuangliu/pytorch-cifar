@@ -7,3 +7,6 @@ __pycache__/
 
 # for log
 *.log
+
+# checkpoints are too big
+ckpt*

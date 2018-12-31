@@ -34,6 +34,10 @@ def loadnet(index):
         print('ckpt4: DenseNet121, 88%')
         net = DenseNet121()
         fname = '../saved_ckpt/ckpt4'
+    elif index == 5:
+        print('ckpt5: DPN92, 87%')
+        net = DPN92()
+        fname = '../saved_ckpt/ckpt5'
     else:
         print('Invalid index')
         return
