@@ -10,3 +10,6 @@ __pycache__/
 
 # checkpoints are too big
 saved_ckpt/
+
+# tar
+*.tar
