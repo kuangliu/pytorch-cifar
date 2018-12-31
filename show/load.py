@@ -42,6 +42,10 @@ def loadnet(index):
         print('ckpt6: VGG16, 83%')
         net = VGG('VGG16')
         fname = '../saved_ckpt/ckpt6'
+    elif index == 7:
+        print('ckpt7: VGG16, 89%')
+        net = VGG('VGG16')
+        fname = '../saved_ckpt/ckpt7'
     else:
         print('Invalid index')
         return
@@ -61,6 +65,6 @@ def loadnet(index):
 
 
 if __name__ == '__main__':
-    [net, acc] = loadnet(6)
+    [net, acc] = loadnet(7)
     print ("Accuracy: %f" % acc)
     print (net)
