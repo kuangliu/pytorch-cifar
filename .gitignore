@@ -9,4 +9,4 @@ __pycache__/
 *.log
 
 # checkpoints are too big
-ckpt*
+saved_ckpt/
