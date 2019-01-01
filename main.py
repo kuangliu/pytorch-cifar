@@ -52,11 +52,11 @@ classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship'
 
 # Model
 print('==> Building model..')
-net = VGG('VGG16')
+# net = VGG('VGG16')
 # net = ResNet18()
 # net = PreActResNet18()
 # net = GoogLeNet()
-# net = DenseNet121()
+net = DenseNet121()
 # net = ResNeXt29_2x64d()
 # net = MobileNet()
 # net = MobileNetV2()
@@ -79,7 +79,6 @@ if args.resume:
     start_epoch = checkpoint['epoch'] + 1
 
 criterion = nn.CrossEntropyLoss()
-# criterion = nn.MSELoss()
 # optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
 optimizer = optim.Adam(net.parameters(), lr=args.lr, weight_decay=5e-4)
 
@@ -94,7 +93,6 @@ def train(epoch):
         inputs, targets = inputs.to(device), targets.to(device)
         optimizer.zero_grad()
         outputs = net(inputs)
-        print(outputs, targets)
         loss = criterion(outputs, targets)
         loss.backward()
         optimizer.step()
