@@ -1,0 +1,15 @@
+data/
+checkpoint/
+__pycache__/
+
+# for pycharm
+.idea/
+
+# for log
+*.log
+
+# checkpoints are too big
+saved_ckpt/
+
+# tar
+*.tar

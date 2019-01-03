@@ -79,7 +79,8 @@ if args.resume:
     start_epoch = checkpoint['epoch'] + 1
 
 # criterion = nn.CrossEntropyLoss()
-criterion = KLDivLoss(reduction='mean');
+# criterion = nn.MSELoss(reduction='sum')
+criterion = nn.L1Loss(reduction='sum');
 # optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
 optimizer = optim.Adam(net.parameters(), lr=args.lr, weight_decay=5e-4)
 
@@ -94,7 +95,13 @@ def train(epoch):
         inputs, targets = inputs.to(device), targets.to(device)
         optimizer.zero_grad()
         outputs = net(inputs)
-        loss = criterion(outputs, targets)
+        targets_mse = torch.zeros(outputs.size()).to(device)
+        for i in range(0, targets_mse.size()[0]):
+            targets_mse[i][targets[i]] = 1;
+        softmax = F.softmax(outputs, dim=0)
+        # print(targets_mse)
+        # print(outputs, targets)
+        loss = criterion(softmax, targets_mse)
         loss.backward()
         optimizer.step()
 
@@ -116,7 +123,11 @@ def test(epoch):
         for batch_idx, (inputs, targets) in enumerate(testloader):
             inputs, targets = inputs.to(device), targets.to(device)
             outputs = net(inputs)
-            loss = criterion(outputs, targets)
+            targets_mse = torch.zeros(outputs.size()).to(device)
+            for i in range(0, targets_mse.size()[0]):
+                targets_mse[i][targets[i]] = 1;
+            softmax = F.softmax(outputs, dim=0)
+            loss = criterion(softmax, targets_mse)
 
             test_loss += loss.item()
             _, predicted = outputs.max(1)
