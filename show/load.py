@@ -50,6 +50,18 @@ def loadnet(index):
         print('ckpt8: ResNeXT, 87%')
         net = ResNeXt29_2x64d()
         fname = '../saved_ckpt/ckpt8'
+    elif index == 9:
+        print('ckpt9: DenseNet, 90%')
+        net = DenseNet121()
+        fname = '../saved_ckpt/ckpt9'
+    elif index == 10:
+        print('ckpt10: VGG16, MSE, 60%')
+        net = VGG('VGG16')
+        fname = '../saved_ckpt/ckpt10'
+    elif index == 11:
+        print('ckpt11: VGG16, L1, 25%')
+        net = VGG('VGG16')
+        fname = '../saved_ckpt/ckpt11'
     else:
         print('Invalid index')
         return
@@ -69,5 +81,5 @@ def loadnet(index):
 
 
 if __name__ == '__main__':
-    [net, acc] = loadnet(8)
+    [net, acc] = loadnet(11)
     print ("Accuracy: %f" % acc)

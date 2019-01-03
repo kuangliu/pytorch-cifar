@@ -79,7 +79,8 @@ if args.resume:
     start_epoch = checkpoint['epoch'] + 1
 
 # criterion = nn.CrossEntropyLoss()
-criterion = nn.MSELoss(reduction='sum')
+# criterion = nn.MSELoss(reduction='sum')
+criterion = nn.L1Loss(reduction='sum');
 # optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
 optimizer = optim.Adam(net.parameters(), lr=args.lr, weight_decay=5e-4)
 
