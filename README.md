@@ -9,7 +9,6 @@ Pros:
 - Very memory efficient!
 
 Cons:
-- No progress bar, sad :(
 - No built-in log.
 
 ## Accuracy
