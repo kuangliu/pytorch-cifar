@@ -19,6 +19,7 @@ from utils import progress_bar
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
+parser.add_argument('--n_epoch', default=100, type=int, help='the number of epochs to train the model')
 parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
 args = parser.parse_args()
 
@@ -50,7 +51,7 @@ classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship'
 
 # Model
 print('==> Building model..')
-# net = VGG('VGG19')
+net = VGG('VGG19')
 # net = ResNet18()
 # net = PreActResNet18()
 # net = GoogLeNet()
@@ -137,6 +138,6 @@ def test(epoch):
         best_acc = acc
 
 
-for epoch in range(start_epoch, start_epoch+200):
+for epoch in range(start_epoch, start_epoch+args.n_epoch):
     train(epoch)
     test(epoch)
