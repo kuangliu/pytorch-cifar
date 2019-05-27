@@ -2,15 +2,9 @@
 
 I'm playing with [PyTorch](http://pytorch.org/) on the CIFAR10 dataset.
 
-## Pros & cons
-Pros:
-- Built-in data loading and augmentation, very nice!
-- Training is fast, maybe even a little bit faster.
-- Very memory efficient!
-
-Cons:
-- No progress bar, sad :(
-- No built-in log.
+## Prerequisites
+- Python 3.6+
+- PyTorch 1.0+
 
 ## Accuracy
 | Model             | Acc.        |
