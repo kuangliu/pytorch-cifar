@@ -7,6 +7,7 @@ import torch.backends.cudnn as cudnn
 
 import torchvision
 import torchvision.transforms as transforms
+from torch.optim.lr_scheduler import MultiStepLR 
 
 import os
 import argparse
@@ -77,7 +78,7 @@ if args.resume:
 
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
-
+scheduler = MultiStepLR(optimizer, milestones=[150,250], gamma=0.1)
 # Training
 def train(epoch):
     print('\nEpoch: %d' % epoch)
@@ -136,6 +137,7 @@ def test(epoch):
         best_acc = acc
 
 
-for epoch in range(start_epoch, start_epoch+200):
+for epoch in range(start_epoch, start_epoch+350):
+    scheduler.step()
     train(epoch)
     test(epoch)
