@@ -24,7 +24,7 @@ class Bottleneck(nn.Module):
         super(Bottleneck, self).__init__()
         self.stride = stride
 
-        mid_planes = out_planes/4
+        mid_planes = int(out_planes/4)
         g = 1 if in_planes==24 else groups
         self.conv1 = nn.Conv2d(in_planes, mid_planes, kernel_size=1, groups=g, bias=False)
         self.bn1 = nn.BatchNorm2d(mid_planes)
