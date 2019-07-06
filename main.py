@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributed as dist
 
+import argparse
 import torchvision
 import torchvision.transforms as transforms
 
@@ -10,24 +11,26 @@ from models import *
 from utils import progress_bar
 
 
+parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Distributed Training')
+parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
+parser.add_argument('--rank', default=0, type=int, help='current process rank')
+parser.add_argument('--world_size', default=1, type=int, help='total number of ranks')
+args = parser.parse_args()
+
+
 # Init process group
 print("Initialize Process Group...")
-dist.init_process_group(
-    backend='nccl', init_method='tcp://localhost:23456', rank=0, world_size=1)
-local_rank = 0
-dp_device_ids = [local_rank]
-
+dist.init_process_group(backend='nccl', init_method='tcp://localhost:23456', 
+                        rank=args.rank, world_size=args.world_size)
 
 # Init Model
 print("Initialize Model...")
 net = EfficientNetB0().cuda()
-net = torch.nn.parallel.DistributedDataParallel(
-    net, device_ids=dp_device_ids, output_device=local_rank)
+net = nn.SyncBatchNorm.convert_sync_batchnorm(net)
+net = torch.nn.parallel.DistributedDataParallel(net)
 
 criterion = nn.CrossEntropyLoss().cuda()
-optimizer = torch.optim.SGD(net.parameters(), 1e-3,
-                            momentum=0.9, weight_decay=1e-4)
-
+optimizer = torch.optim.SGD(net.parameters(), 1e-3, momentum=0.9, weight_decay=1e-4)
 
 # Data
 print('==> Preparing data..')

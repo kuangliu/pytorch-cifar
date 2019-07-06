@@ -2,6 +2,14 @@
 
 I'm playing with [PyTorch](http://pytorch.org/) on the CIFAR10 dataset.
 
+## Distributed training
+Because SyncBatchNorm only supports one process per GPU, so we need to manually start #GPU processes. 
+```
+# 2 GPUs:
+CUDA_VISIBLE_DEVICES=0 python main.py --rank=0 --world_size=2
+CUDA_VISIBLE_DEVICES=1 python main.py --rank=1 --world_size=2
+```
+
 ## Prerequisites
 - Python 3.6+
 - PyTorch 1.0+
