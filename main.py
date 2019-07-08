@@ -1,3 +1,7 @@
+'''Single node, multi-GPUs.
+
+Launch a process for each GPU.
+'''
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -13,7 +17,7 @@ from utils import progress_bar
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Distributed Training')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
-parser.add_argument('--rank', default=0, type=int, help='current process rank')
+parser.add_argument('--local_rank', default=0, type=int, help='current process rank')
 parser.add_argument('--world_size', default=1, type=int, help='total number of ranks')
 args = parser.parse_args()
 
@@ -21,7 +25,7 @@ args = parser.parse_args()
 # Init process group
 print("Initialize Process Group...")
 dist.init_process_group(backend='nccl', init_method='tcp://localhost:23456', 
-                        rank=args.rank, world_size=args.world_size)
+                        rank=args.local_rank, world_size=args.world_size)
 
 # Init Model
 print("Initialize Model...")
