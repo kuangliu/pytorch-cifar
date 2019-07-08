@@ -1,7 +1,4 @@
-'''Single node, multi-GPUs.
-
-Launch a process for each GPU.
-'''
+'''Single node, multi-GPUs training.'''
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -24,14 +21,16 @@ args = parser.parse_args()
 
 # Init process group
 print("Initialize Process Group...")
-dist.init_process_group(backend='nccl', init_method='tcp://localhost:23456', 
+dist.init_process_group(backend='nccl', init_method='tcp://localhost:23456',
                         rank=args.local_rank, world_size=args.world_size)
+torch.cuda.set_device(args.local_rank)
 
 # Init Model
 print("Initialize Model...")
 net = EfficientNetB0().cuda()
 net = nn.SyncBatchNorm.convert_sync_batchnorm(net)
-net = torch.nn.parallel.DistributedDataParallel(net)
+net = torch.nn.parallel.DistributedDataParallel(
+    net, device_ids=[args.local_rank], output_device=args.local_rank)
 
 criterion = nn.CrossEntropyLoss().cuda()
 optimizer = torch.optim.SGD(net.parameters(), 1e-3, momentum=0.9, weight_decay=1e-4)
@@ -69,8 +68,7 @@ def train(epoch):
     correct = 0
     total = 0
     for batch_idx, (inputs, targets) in enumerate(trainloader):
-        inputs, targets = inputs.cuda(
-            non_blocking=True), targets.cuda(non_blocking=True)
+        inputs, targets = inputs.cuda(), targets.cuda()
         outputs = net(inputs)
         loss = F.cross_entropy(outputs, targets)
         optimizer.zero_grad()
@@ -93,8 +91,7 @@ def test(epoch):
     total = 0
     with torch.no_grad():
         for batch_idx, (inputs, targets) in enumerate(testloader):
-            inputs, targets = inputs.cuda(
-                non_blocking=True), targets.cuda(non_blocking=True)
+            inputs, targets = inputs.cuda(), targets.cuda()
             outputs = net(inputs)
             loss = F.cross_entropy(outputs, targets)
 
