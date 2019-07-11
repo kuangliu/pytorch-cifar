@@ -18,11 +18,17 @@ from utils import progress_bar
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
 parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
+parser.add_argument('--fp16', action='store_true', help='enable FP16')
+parser.add_argument('--epoch', default=50, type=int, help='learning rate')
+parser.add_argument('--bs', default=128, type=int, help='batchsize')
 args = parser.parse_args()
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 best_acc = 0  # best test accuracy
 start_epoch = 0  # start from epoch 0 or last checkpoint epoch
+
+# you might need to change lr along with bs for good accuracy.
+bs = int(args.bs)
 
 # Data
 print('==> Preparing data..')
@@ -50,6 +56,7 @@ classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship'
 print('==> Building model..')
 # net = VGG('VGG19')
 # net = ResNet18()
+net = ResNet50()
 # net = PreActResNet18()
 # net = GoogLeNet()
 # net = DenseNet121()
@@ -60,11 +67,16 @@ print('==> Building model..')
 # net = ShuffleNetG2()
 # net = SENet18()
 # net = ShuffleNetV2(1)
-net = EfficientNetB0()
+# net = EfficientNetB0()
 net = net.to(device)
 if device == 'cuda':
     net = torch.nn.DataParallel(net)
     cudnn.benchmark = True
+
+if args.fp16:
+    from fp16util import network_to_half
+    net = network_to_half(net)
+
 
 if args.resume:
     # Load checkpoint.
@@ -136,6 +148,6 @@ def test(epoch):
         best_acc = acc
 
 
-for epoch in range(start_epoch, start_epoch+200):
+for epoch in range(start_epoch, start_epoch+int(args.epoch)):
     train(epoch)
     test(epoch)
