@@ -19,6 +19,11 @@ cifar_dir = '~/data/cifar-10'
 cifar_mean = [0.4914, 0.4822, 0.4465]
 cifar_std = [0.2023, 0.1994, 0.2010]
 
+# CINIC-10 Data
+cinic_dir = '~/data/cinic-10'
+cinic_mean = [0.47889522, 0.47227842, 0.43047404]
+cinic_std = [0.24205776, 0.23828046, 0.25874835]
+
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
 parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
@@ -37,22 +42,34 @@ bs = int(args.bs)
 # Data
 print('==> Preparing data..')
 transform_train = transforms.Compose([
-    transforms.RandomCrop(32, padding=4),
-    transforms.RandomHorizontalFlip(),
+    # CIFAR-10
+    #transforms.RandomCrop(32, padding=4),
+    #transforms.RandomHorizontalFlip(),
+    #transforms.ToTensor(),
+    #transforms.Normalize(cifar_mean, cifar_std),
+
+    # CINIC-10
     transforms.ToTensor(),
-    transforms.Normalize(cifar_mean, cifar_std),
+    transforms.Normalize(cinic_mean, cinic_std),
 ])
 
 transform_test = transforms.Compose([
+    # CIFAR-10
+    #transforms.ToTensor(),
+    #transforms.Normalize(cifar_mean, cifar_std),
+
+    # CINIC-10
     transforms.ToTensor(),
-    transforms.Normalize(cifar_mean, cifar_std),
+    transforms.Normalize(cinic_mean, cinic_std),
 ])
 
-trainset = torchvision.datasets.CIFAR10(root=cifar_dir, train=True, download=True, transform=transform_train)
-trainloader = torch.utils.data.DataLoader(trainset, batch_size=bs, shuffle=True, num_workers=2)
+#trainset = torchvision.datasets.CIFAR10(root=cifar_dir, train=True, download=True, transform=transform_train)
+trainset = torchvision.datasets.ImageFolder(cinic_dir + '/train', transform=transform_train)
+trainloader = torch.utils.data.DataLoader(trainset, batch_size=bs, shuffle=True, num_workers=4)
 
-testset = torchvision.datasets.CIFAR10(root=cifar_dir, train=False, download=True, transform=transform_test)
-testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False, num_workers=2)
+#testset = torchvision.datasets.CIFAR10(root=cifar_dir, train=False, download=True, transform=transform_test)
+testset = torchvision.datasets.ImageFolder(cinic_dir + '/test', transform=transform_test)
+testloader = torch.utils.data.DataLoader(testset, batch_size=100, shuffle=False, num_workers=4)
 
 classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
