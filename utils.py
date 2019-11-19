@@ -48,6 +48,7 @@ term_width = int(term_width)
 TOTAL_BAR_LENGTH = 65.
 last_time = time.time()
 begin_time = last_time
+# write to the disk whatever is being written to the console
 def progress_bar(current, total, msg=None):
     global last_time, begin_time
     if current == 0:
@@ -77,19 +78,29 @@ def progress_bar(current, total, msg=None):
 
     msg = ''.join(L)
     sys.stdout.write(msg)
+    # accumulate all the text
+    log = msg
     for i in range(term_width-int(TOTAL_BAR_LENGTH)-len(msg)-3):
         sys.stdout.write(' ')
+        log += ' '
 
     # Go back to the center of the bar.
     for i in range(term_width-int(TOTAL_BAR_LENGTH/2)+2):
         sys.stdout.write('\b')
+
     sys.stdout.write(' %d/%d ' % (current+1, total))
+    log += str(current+1) + '/' + str(total)
 
     if current < total-1:
         sys.stdout.write('\r')
+        log += '\r'
     else:
         sys.stdout.write('\n')
+        log += '\n'
+
     sys.stdout.flush()
+
+    return log
 
 def format_time(seconds):
     days = int(seconds / 3600/24)
