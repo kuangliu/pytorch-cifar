@@ -123,7 +123,6 @@ with open('info.txt') as f:
             testloader = torch.utils.data.DataLoader(testset, batch_size=batchsize_test, shuffle=False, num_workers=2)
         # similarly for other datasets as well
 
-
         # does this also change?
         classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
