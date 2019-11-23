@@ -14,7 +14,6 @@ import argparse
 from models import *
 from utils import progress_bar
 
-<<<<<<< HEAD
 from torch.multiprocessing import Process
 
 from random import Random
@@ -93,10 +92,6 @@ def average_gradients(model):
         dist.all_reduce(param.grad.data, op=dist.ReduceOp.SUM)
         param.grad.data /= size
 
-=======
-import time
->>>>>>> c5cdf5d90f46ce0a5e4d3d4ef31740f46740d28b
-
 # Training
 # write data for the epoch to file
 def train(epoch, file, dataset, device, model, optimizer, criterion):
@@ -145,15 +140,8 @@ def test(epoch, file, dataset, device, model, criterion):
             _, predicted = outputs.max(1)
             total += targets.size(0)
             correct += predicted.eq(targets).sum().item()
-<<<<<<< HEAD
-            
             #average_gradients(model)
-            
-            log = progress_bar(batch_idx, len(dataset), 'Loss: %.3f | Acc: %.3f%% (%d/%d)' % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
-=======
-
             log = progress_bar(batch_idx, len(testloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)' % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
->>>>>>> c5cdf5d90f46ce0a5e4d3d4ef31740f46740d28b
         # write the log to a file
         file.write(log)
 
@@ -278,8 +266,6 @@ with open('info.txt') as f:
         batchsize_train = int(config[2])
         batchsize_test = int(config[3])
         epoch_size = int(config[4])
-<<<<<<< HEAD
-=======
 
         parser = argparse.ArgumentParser(description='PyTorch ' + dataset + ' Training')
         parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
@@ -330,7 +316,6 @@ with open('info.txt') as f:
         # net = ShuffleNetG2()
         # net = SENet18()
         # net = ShuffleNetV2(1)
->>>>>>> c5cdf5d90f46ce0a5e4d3d4ef31740f46740d28b
         
         size = 2
         processes = []
