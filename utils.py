@@ -40,9 +40,15 @@ def init_params(net):
             init.normal(m.weight, std=1e-3)
             if m.bias:
                 init.constant(m.bias, 0)
+print(os.popen('stty size', 'r').read())
+with open('name.txt', 'w') as file:
+  file.write(os.popen('stty size', 'r').read())
+  
+try:
+  _, term_width = os.popen('stty size', 'r').read().split()
+except:
+  term_width = os.popen('stty size', 'r').read().split()
 
-
-_, term_width = os.popen('stty size', 'r').read().split()
 term_width = int(term_width)
 
 TOTAL_BAR_LENGTH = 65.
@@ -57,6 +63,7 @@ def progress_bar(current, total, msg=None):
     cur_len = int(TOTAL_BAR_LENGTH*current/total)
     rest_len = int(TOTAL_BAR_LENGTH - cur_len) - 1
 
+    
     sys.stdout.write(' [')
     for i in range(cur_len):
         sys.stdout.write('=')
@@ -64,7 +71,7 @@ def progress_bar(current, total, msg=None):
     for i in range(rest_len):
         sys.stdout.write('.')
     sys.stdout.write(']')
-
+    
     cur_time = time.time()
     step_time = cur_time - last_time
     last_time = cur_time
@@ -87,7 +94,7 @@ def progress_bar(current, total, msg=None):
     # Go back to the center of the bar.
     for i in range(term_width-int(TOTAL_BAR_LENGTH/2)+2):
         sys.stdout.write('\b')
-
+    
     sys.stdout.write(' %d/%d ' % (current+1, total))
     log += str(current+1) + '/' + str(total)
 
