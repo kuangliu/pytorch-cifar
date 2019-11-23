@@ -1,0 +1,13 @@
+#!/bin/sh
+
+#PBS -N gpu_run
+#PBS -l select=1:ncpus=8:mem=128gb:ngpus=1:gpu_model=v100,walltime=48:00:00
+
+module add anaconda3/5.1.0
+module add cuda-toolkit/9.0.176
+module add cuDNN/9.0v7.3.0
+source activate roshan
+
+cd /home/rbhanda/roshan/pytorch-cifar/
+python main.py --lr=0.01
+
