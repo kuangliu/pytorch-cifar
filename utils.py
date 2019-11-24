@@ -49,12 +49,9 @@ try:
 except:
   term_width = os.popen('stty size', 'r').read().split()
 
-<<<<<<< HEAD
-=======
 
 term_width = 132
 print("term_width:: ", term_width)
->>>>>>> c5cdf5d90f46ce0a5e4d3d4ef31740f46740d28b
 term_width = int(term_width)
 
 TOTAL_BAR_LENGTH = 65.
