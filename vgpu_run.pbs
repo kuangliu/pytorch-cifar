@@ -1,0 +1,12 @@
+#!/bin/sh
+#PBS -N vgpu_run
+#PBS -q testvgpu
+#PBS -l select=1:mem=30gb:host=node3002+1:mem=30gb:host=node3005,walltime=48:00:00
+
+module add cuda-toolkit/9.0.176
+module load cuda-toolkit/vgpu-10.1.243
+module add anaconda3/5.1.0
+module add cuDNN/9.0v7.3.0
+source activate roshan
+cd /home/rbhanda/roshan/pytorch-cifar
+python main.py --resume --lr=0.01

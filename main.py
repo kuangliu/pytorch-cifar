@@ -248,8 +248,12 @@ def run(rank, size):
 
 def init_process(rank, size, fn, backend='gloo'):
     """ Initialize the distributed environment. """
-    os.environ['MASTER_ADDR'] = '127.0.0.1'
-    os.environ['MASTER_PORT'] = '29500'
+    if rank == 0:
+      os.environ['MASTER_ADDR'] = '10.125.100.2'
+      os.environ['MASTER_PORT'] = '29500'
+    else:
+      os.environ['MASTER_ADDR'] = '10.125.100.5'
+      os.environ['MASTER_PORT'] = '29500'
     dist.init_process_group(backend, rank=rank, world_size=size)
     fn(rank, size)
 
@@ -301,7 +305,15 @@ with open('info.txt') as f:
         classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
 
         # fill in the dictionary with all the model names
-        models = {'EfficientNetB0': EfficientNetB0, 'MobileNet': MobileNet, 'MobileNetV2': MobileNetV2, 'ShuffleNetV2': ShuffleNetV2, 'DPN92': DPN92, 'SENet18': SENet18}
+        models = {
+          'EfficientNetB0': EfficientNetB0, 
+          'MobileNet': MobileNet, 
+          'MobileNetV2': MobileNetV2, 
+          'ShuffleNetV2': ShuffleNetV2, 
+          'DPN92': DPN92, 
+          'SENet18': SENet18
+        }
+
         # Model
         print('==> Building model..')
         # net = VGG('VGG19')
