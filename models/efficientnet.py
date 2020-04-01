@@ -82,7 +82,7 @@ class EfficientNet(nn.Module):
         for expansion, out_planes, num_blocks, kernel_size, stride in self.cfg:
             strides = [stride] + [1]*(num_blocks-1)
             for stride in strides:
-                layers.append(Block(in_planes, out_planes, kernel_size, stride, expansion, se_ratio=0.25, drop_rate=0.2))
+                layers.append(Block(in_planes, out_planes, kernel_size, stride, expansion, se_ratio=0.25, drop_rate=0))
                 in_planes = out_planes
         return nn.Sequential(*layers)
 
