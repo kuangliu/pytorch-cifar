@@ -97,6 +97,8 @@ class EfficientNet(nn.Module):
 
     def _make_layers(self, in_planes):
         layers = []
+        b = 0
+        blocks = float(sum(x[2] for x in self.cfg))
         for expansion, out_planes, num_blocks, kernel_size, stride in self.cfg:
             strides = [stride] + [1] * (num_blocks - 1)
             for stride in strides:
@@ -107,8 +109,9 @@ class EfficientNet(nn.Module):
                           stride,
                           expansion,
                           se_ratio=0.25,
-                          drop_rate=0))
+                          drop_rate=0.2 * b / blocks))
                 in_planes = out_planes
+                b += 1
         return nn.Sequential(*layers)
 
     def forward(self, x):
@@ -116,6 +119,7 @@ class EfficientNet(nn.Module):
         out = self.layers(out)
         out = F.adaptive_avg_pool2d(out, 1)
         out = out.view(out.size(0), -1)
+        out = F.dropout(out, 0.2)
         out = self.linear(out)
         return out
 
