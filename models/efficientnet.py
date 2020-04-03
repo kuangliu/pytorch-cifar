@@ -13,6 +13,30 @@ def swish(x):
     return x * x.sigmoid()
 
 
+def drop_connect(x, drop_ratio):
+    keep_ratio = 1.0 - drop_ratio
+    mask = torch.empty([x.shape[0], 1, 1, 1], dtype=x.dtype, device=x.device)
+    mask.bernoulli_(keep_ratio)
+    x.div_(keep_ratio)
+    x.mul_(mask)
+    return x
+
+
+class SE(nn.Module):
+    '''Squeeze-and-Excitation block with Swish.'''
+    def __init__(self, in_planes, se_planes):
+        super(SE, self).__init__()
+        self.se1 = nn.Conv2d(in_planes, se_planes, kernel_size=1, bias=True)
+        self.se2 = nn.Conv2d(se_planes, in_planes, kernel_size=1, bias=True)
+
+    def forward(self, x):
+        out = F.adaptive_avg_pool2d(x, (1, 1))
+        out = swish(self.se1(out))
+        out = self.se2(out).sigmoid()
+        out = x * out
+        return out
+
+
 class Block(nn.Module):
     '''expansion + depthwise + pointwise + squeeze-excitation'''
     def __init__(self,
@@ -43,15 +67,14 @@ class Block(nn.Module):
                                planes,
                                kernel_size=kernel_size,
                                stride=stride,
-                               padding=(kernel_size - 1) // 2,
+                               padding=(1 if kernel_size == 3 else 2),
                                groups=planes,
                                bias=False)
         self.bn2 = nn.BatchNorm2d(planes)
 
         # SE layers
-        se_planes = max(1, int(planes * se_ratio))
-        self.se1 = nn.Conv2d(planes, se_planes, kernel_size=1)
-        self.se2 = nn.Conv2d(se_planes, planes, kernel_size=1)
+        se_planes = int(in_planes * se_ratio)
+        self.se = SE(planes, se_planes)
 
         # Output
         self.conv3 = nn.Conv2d(planes,
@@ -62,21 +85,17 @@ class Block(nn.Module):
                                bias=False)
         self.bn3 = nn.BatchNorm2d(out_planes)
 
-        self.shortcut = (stride == 1) and (in_planes == out_planes)
+        # Skip connection if in and out shapes are the same (MV-V2 style)
+        self.has_skip = (stride == 1) and (in_planes == out_planes)
 
     def forward(self, x):
         out = x if self.expand_ratio == 1 else swish(self.bn1(self.conv1(x)))
         out = swish(self.bn2(self.conv2(out)))
-        # Squeeze-Excitation
-        w = F.avg_pool2d(out, out.size(2))
-        w = swish(self.se1(w))
-        w = self.se2(w).sigmoid()
-        out = out * w
-        # Output
+        out = self.se(out)
         out = self.bn3(self.conv3(out))
-        if self.shortcut:
-            if self.drop_rate > 0:
-                out = F.dropout2d(out, self.drop_rate)
+        if self.has_skip:
+            if self.training and self.drop_rate > 0:
+                out = drop_connect(out, self.drop_rate)
             out = out + x
         return out
 
@@ -97,8 +116,6 @@ class EfficientNet(nn.Module):
 
     def _make_layers(self, in_planes):
         layers = []
-        b = 0
-        blocks = float(sum(x[2] for x in self.cfg))
         for expansion, out_planes, num_blocks, kernel_size, stride in self.cfg:
             strides = [stride] + [1] * (num_blocks - 1)
             for stride in strides:
@@ -109,9 +126,8 @@ class EfficientNet(nn.Module):
                           stride,
                           expansion,
                           se_ratio=0.25,
-                          drop_rate=0.2 * b / blocks))
+                          drop_rate=0))
                 in_planes = out_planes
-                b += 1
         return nn.Sequential(*layers)
 
     def forward(self, x):
@@ -119,7 +135,6 @@ class EfficientNet(nn.Module):
         out = self.layers(out)
         out = F.adaptive_avg_pool2d(out, 1)
         out = out.view(out.size(0), -1)
-        out = F.dropout(out, 0.2)
         out = self.linear(out)
         return out
 
