@@ -40,14 +40,24 @@ def init_params(net):
             init.normal(m.weight, std=1e-3)
             if m.bias:
                 init.constant(m.bias, 0)
+print(os.popen('stty size', 'r').read())
+with open('name.txt', 'w') as file:
+  file.write(os.popen('stty size', 'r').read())
+  
+try:
+  _, term_width = os.popen('stty size', 'r').read().split()
+except:
+  term_width = os.popen('stty size', 'r').read().split()
 
 
-_, term_width = os.popen('stty size', 'r').read().split()
+term_width = 132
+print("term_width:: ", term_width)
 term_width = int(term_width)
 
 TOTAL_BAR_LENGTH = 65.
 last_time = time.time()
 begin_time = last_time
+# write to the disk whatever is being written to the console
 def progress_bar(current, total, msg=None):
     global last_time, begin_time
     if current == 0:
@@ -56,6 +66,7 @@ def progress_bar(current, total, msg=None):
     cur_len = int(TOTAL_BAR_LENGTH*current/total)
     rest_len = int(TOTAL_BAR_LENGTH - cur_len) - 1
 
+    
     sys.stdout.write(' [')
     for i in range(cur_len):
         sys.stdout.write('=')
@@ -63,7 +74,7 @@ def progress_bar(current, total, msg=None):
     for i in range(rest_len):
         sys.stdout.write('.')
     sys.stdout.write(']')
-
+    
     cur_time = time.time()
     step_time = cur_time - last_time
     last_time = cur_time
@@ -77,19 +88,29 @@ def progress_bar(current, total, msg=None):
 
     msg = ''.join(L)
     sys.stdout.write(msg)
+    # accumulate all the text
+    log = msg
     for i in range(term_width-int(TOTAL_BAR_LENGTH)-len(msg)-3):
         sys.stdout.write(' ')
+        log += ' '
 
     # Go back to the center of the bar.
     for i in range(term_width-int(TOTAL_BAR_LENGTH/2)+2):
         sys.stdout.write('\b')
+    
     sys.stdout.write(' %d/%d ' % (current+1, total))
+    log += str(current+1) + '/' + str(total)
 
     if current < total-1:
         sys.stdout.write('\r')
+        log += '\r'
     else:
         sys.stdout.write('\n')
+        log += '\n'
+
     sys.stdout.flush()
+
+    return log
 
 def format_time(seconds):
     days = int(seconds / 3600/24)
