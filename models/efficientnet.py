@@ -24,6 +24,7 @@ def drop_connect(x, drop_ratio):
 
 class SE(nn.Module):
     '''Squeeze-and-Excitation block with Swish.'''
+
     def __init__(self, in_planes, se_planes):
         super(SE, self).__init__()
         self.se1 = nn.Conv2d(in_planes, se_planes, kernel_size=1, bias=True)
@@ -39,6 +40,7 @@ class SE(nn.Module):
 
 class Block(nn.Module):
     '''expansion + depthwise + pointwise + squeeze-excitation'''
+
     def __init__(self,
                  in_planes,
                  out_planes,
@@ -112,11 +114,13 @@ class EfficientNet(nn.Module):
                                bias=False)
         self.bn1 = nn.BatchNorm2d(32)
         self.layers = self._make_layers(in_planes=32)
-        self.linear = nn.Linear(cfg[-1][1], num_classes)
+        self.linear = nn.Linear(cfg['out_planes'][-1], num_classes)
 
     def _make_layers(self, in_planes):
         layers = []
-        for expansion, out_planes, num_blocks, kernel_size, stride in self.cfg:
+        cfg = [self.cfg[k] for k in ['expansion', 'out_planes', 'num_blocks', 'kernel_size',
+                                     'stride']]
+        for expansion, out_planes, num_blocks, kernel_size, stride in zip(*cfg):
             strides = [stride] + [1] * (num_blocks - 1)
             for stride in strides:
                 layers.append(
@@ -140,10 +144,13 @@ class EfficientNet(nn.Module):
 
 
 def EfficientNetB0():
-    # (expansion, out_planes, num_blocks, kernel_size, stride)
-    cfg = [(1, 16, 1, 3, 1), (6, 24, 2, 3, 2), (6, 40, 2, 5, 2),
-           (6, 80, 3, 3, 2), (6, 112, 3, 5, 1), (6, 192, 4, 5, 2),
-           (6, 320, 1, 3, 1)]
+    cfg = {
+        'num_blocks': [1, 2, 2, 3, 3, 4, 1],
+        'expansion': [1, 6, 6, 6, 6, 6, 6],
+        'out_planes': [16, 24, 40, 80, 112, 192, 320],
+        'kernel_size': [3, 3, 5, 3, 5, 5, 3],
+        'stride': [1, 2, 2, 2, 1, 2, 1],
+    }
     return EfficientNet(cfg)
 
 
