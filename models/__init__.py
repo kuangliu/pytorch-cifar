@@ -13,4 +13,4 @@ from .preact_resnet import *
 from .mobilenet import *
 from .mobilenetv2 import *
 from .efficientnet import *
-from .regnet import RegNetX_200MF
+from .regnet import *

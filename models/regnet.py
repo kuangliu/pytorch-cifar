@@ -9,9 +9,25 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-class BlockX(nn.Module):
-    def __init__(self, w_in, w_out, stride, bottleneck_ratio, num_groups):
-        super(BlockX, self).__init__()
+class SE(nn.Module):
+    '''Squeeze-and-Excitation block.'''
+
+    def __init__(self, in_planes, se_planes):
+        super(SE, self).__init__()
+        self.se1 = nn.Conv2d(in_planes, se_planes, kernel_size=1, bias=True)
+        self.se2 = nn.Conv2d(se_planes, in_planes, kernel_size=1, bias=True)
+
+    def forward(self, x):
+        out = F.adaptive_avg_pool2d(x, (1, 1))
+        out = F.relu(self.se1(out))
+        out = self.se2(out).sigmoid()
+        out = x * out
+        return out
+
+
+class Block(nn.Module):
+    def __init__(self, w_in, w_out, stride, num_groups, bottleneck_ratio, se_ratio):
+        super(Block, self).__init__()
         # 1x1
         w_b = int(round(w_out * bottleneck_ratio))
         self.conv1 = nn.Conv2d(w_in, w_b, kernel_size=1, bias=False)
@@ -21,6 +37,11 @@ class BlockX(nn.Module):
         self.conv2 = nn.Conv2d(w_b, w_b, kernel_size=3,
                                stride=stride, padding=1, groups=groups, bias=False)
         self.bn2 = nn.BatchNorm2d(w_b)
+        # se
+        self.with_se = se_ratio > 0
+        if self.with_se:
+            w_se = int(round(w_in * se_ratio))
+            self.se = SE(w_b, w_se)
         # 1x1
         self.conv3 = nn.Conv2d(w_b, w_out, kernel_size=1, bias=False)
         self.bn3 = nn.BatchNorm2d(w_out)
@@ -36,6 +57,8 @@ class BlockX(nn.Module):
     def forward(self, x):
         out = F.relu(self.bn1(self.conv1(x)))
         out = F.relu(self.bn2(self.conv2(out)))
+        if self.with_se:
+            out = self.se(out)
         out = self.bn3(self.conv3(out))
         out += self.shortcut(x)
         out = F.relu(out)
@@ -62,12 +85,13 @@ class RegNet(nn.Module):
         stride = self.cfg['strides'][idx]
         num_groups = self.cfg['num_groups']
         bottleneck_ratio = self.cfg['bottleneck_ratio']
+        se_ratio = self.cfg['se_ratio']
 
         layers = []
         for i in range(depth):
             s = stride if i == 0 else 1
-            layers.append(BlockX(self.in_planes, width,
-                                 s, bottleneck_ratio, num_groups))
+            layers.append(Block(self.in_planes, width,
+                                s, num_groups, bottleneck_ratio, se_ratio))
             self.in_planes = width
         return nn.Sequential(*layers)
 
@@ -90,12 +114,37 @@ def RegNetX_200MF():
         'strides': [1, 1, 2, 2],
         'num_groups': 8,
         'bottleneck_ratio': 1,
+        'se_ratio': 0,
+    }
+    return RegNet(cfg)
+
+
+def RegNetX_400MF():
+    cfg = {
+        'depths': [1, 2, 7, 12],
+        'widths': [32, 64, 160, 384],
+        'strides': [1, 1, 2, 2],
+        'num_groups': 16,
+        'bottleneck_ratio': 1,
+        'se_ratio': 0,
+    }
+    return RegNet(cfg)
+
+
+def RegNetY_400MF():
+    cfg = {
+        'depths': [1, 2, 7, 12],
+        'widths': [32, 64, 160, 384],
+        'strides': [1, 1, 2, 2],
+        'num_groups': 16,
+        'bottleneck_ratio': 1,
+        'se_ratio': 0.25,
     }
     return RegNet(cfg)
 
 
 def test():
-    net = RegNetX_200MF()
+    net = RegNetY_400MF()
     print(net)
     x = torch.randn(2, 3, 32, 32)
     y = net(x)
