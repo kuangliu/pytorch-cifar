@@ -4,9 +4,8 @@ For Pre-activation ResNet, see 'preact_resnet.py'.
 
 Reference:
 [1] Kaiming He, Xiangyu Zhang, Shaoqing Ren, Jian Sun
-    Deep Residual Learning for Image Recognition. arXiv:1512.0338
+    Deep Residual Learning for Image Recognition. arXiv:1512.03385
 '''
-
 
 import torch
 import torch.nn as nn
@@ -20,6 +19,7 @@ class BasicBlock(nn.Module):
         self.conv1 = nn.Conv2d(
             in_channels, out_channels, kernel_size=3, stride=stride, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(out_channels)
+
         self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3,
                                stride=1, padding=1, bias=False)
         self.bn2 = nn.BatchNorm2d(out_channels)
@@ -58,6 +58,8 @@ class Bottleneck(nn.Module):
         self.bn3 = nn.BatchNorm2d(self.expansion*out_channels)
                 
         self.shortcut = nn.Sequential()
+
+        #if the output dimension of conv2 != input dimension
         if stride != 1 or in_channels != self.expansion*out_channels:
             self.shortcut = nn.Sequential(
                 nn.Conv2d(in_channels, self.expansion*out_channels, kernel_size=1,
@@ -100,7 +102,6 @@ class ResNet(nn.Module):
             self.in_channels = out_channels * block.expansion
         return nn.Sequential(*layers)
             
-    
     def forward(self, x):
         out = F.relu(self.bn1(self.conv1(x)))
         out = self.layer1(out)
@@ -115,27 +116,20 @@ class ResNet(nn.Module):
 def ResNet18():
     return ResNet(BasicBlock, [2, 2, 2, 2])
 
-
 def ResNet34():
     return ResNet(BasicBlock, [3, 4, 6, 3])
-
 
 def ResNet50():
     return ResNet(Bottleneck, [3, 4, 6, 3])
 
-
 def ResNet101():
     return ResNet(Bottleneck, [3, 4, 23, 3])
-
 
 def ResNet152():
     return ResNet(Bottleneck, [3, 8, 36, 3])
 
 def test():
-#     net = ResNet18()
-#     net = ResNet34()
     net = ResNet50()
-#     print(net)
     y = net(torch.randn(1, 3, 32, 32))
     
 test()
