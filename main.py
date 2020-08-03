@@ -12,6 +12,7 @@ import os
 import argparse
 
 from models import *
+from metrics import Metrics
 from utils import progress_bar
 
 
@@ -55,7 +56,7 @@ classes = ('plane', 'car', 'bird', 'cat', 'deer',
 # Model
 print('==> Building model..')
 # net = VGG('VGG19')
-# net = ResNet18()
+net = ResNet18()
 # net = PreActResNet18()
 # net = GoogLeNet()
 # net = DenseNet121()
@@ -67,7 +68,7 @@ print('==> Building model..')
 # net = SENet18()
 # net = ShuffleNetV2(1)
 # net = EfficientNetB0()
-net = RegNetX_200MF()
+# net = RegNetX_200MF()
 net = net.to(device)
 if device == 'cuda':
     net = torch.nn.DataParallel(net)
@@ -92,8 +93,7 @@ def train(epoch):
     print('\nEpoch: %d' % epoch)
     net.train()
     train_loss = 0
-    correct = 0
-    total = 0
+    metric = Metrics(num_classes=10)
     for batch_idx, (inputs, targets) in enumerate(trainloader):
         inputs, targets = inputs.to(device), targets.to(device)
         optimizer.zero_grad()
@@ -104,19 +104,18 @@ def train(epoch):
 
         train_loss += loss.item()
         _, predicted = outputs.max(1)
-        total += targets.size(0)
-        correct += predicted.eq(targets).sum().item()
-
-        progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-                     % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
+        metric.update(predicted, targets)
+        acc = metric.accuracy()
+        prec = metric.precision()
+        progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% | Prec: %.3f%%'
+                     % (train_loss/(batch_idx+1), 100.*acc, 100.*prec))
 
 
 def test(epoch):
     global best_acc
     net.eval()
     test_loss = 0
-    correct = 0
-    total = 0
+    metric = Metrics(num_classes=10)
     with torch.no_grad():
         for batch_idx, (inputs, targets) in enumerate(testloader):
             inputs, targets = inputs.to(device), targets.to(device)
@@ -125,14 +124,14 @@ def test(epoch):
 
             test_loss += loss.item()
             _, predicted = outputs.max(1)
-            total += targets.size(0)
-            correct += predicted.eq(targets).sum().item()
-
-            progress_bar(batch_idx, len(testloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-                         % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
+            metric.update(predicted, targets)
+            acc = metric.accuracy()
+            prec = metric.precision()
+            progress_bar(batch_idx, len(testloader), 'Loss: %.3f | Acc: %.3f%% | Prec: %.3f%%'
+                         % (test_loss/(batch_idx+1), 100.*acc, 100.*prec))
 
     # Save checkpoint.
-    acc = 100.*correct/total
+    acc = metric.accuracy()
     if acc > best_acc:
         print('Saving..')
         state = {
