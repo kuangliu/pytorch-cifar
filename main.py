@@ -12,7 +12,7 @@ import os
 import argparse
 
 from models import *
-from metrics import Metrics
+from metrics import Metric
 from utils import progress_bar
 
 
@@ -93,7 +93,7 @@ def train(epoch):
     print('\nEpoch: %d' % epoch)
     net.train()
     train_loss = 0
-    metric = Metrics(num_classes=10)
+    metric = Metric(num_classes=10)
     for batch_idx, (inputs, targets) in enumerate(trainloader):
         inputs, targets = inputs.to(device), targets.to(device)
         optimizer.zero_grad()
@@ -115,7 +115,7 @@ def test(epoch):
     global best_acc
     net.eval()
     test_loss = 0
-    metric = Metrics(num_classes=10)
+    metric = Metric(num_classes=10)
     with torch.no_grad():
         for batch_idx, (inputs, targets) in enumerate(testloader):
             inputs, targets = inputs.to(device), targets.to(device)
@@ -130,6 +130,7 @@ def test(epoch):
             progress_bar(batch_idx, len(testloader), 'Loss: %.3f | Acc: %.3f%% | Prec: %.3f%%'
                          % (test_loss/(batch_idx+1), 100.*acc, 100.*prec))
 
+    print(metric.confusion_matrix())
     # Save checkpoint.
     acc = metric.accuracy()
     if acc > best_acc:

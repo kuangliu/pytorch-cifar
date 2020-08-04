@@ -1,8 +1,8 @@
 import torch
 
 
-class Metrics:
-    '''Metrics computes accuracy/precision/recall/confusion_matrix with batch updates.'''
+class Metric:
+    '''Metric computes accuracy/precision/recall/confusion_matrix with batch updates.'''
 
     def __init__(self, num_classes):
         self.num_classes = num_classes
@@ -103,11 +103,20 @@ class Metrics:
             recall = recall.mean()
         return recall
 
+    def confusion_matrix(self):
+        y = torch.cat(self.y, 0)
+        t = torch.cat(self.t, 0)
+        matrix = torch.zeros(self.num_classes, self.num_classes)
+        for i in range(self.num_classes):
+            for j in range(self.num_classes):
+                matrix[j][i] = ((y == i) & (t == j)).sum().item()
+        return matrix
+
 
 def test():
     import pytorch_lightning.metrics.functional as M
     nc = 10
-    m = Metrics(num_classes=nc)
+    m = Metric(num_classes=nc)
     y = torch.randint(0, nc, (10,))
     t = torch.randint(0, nc, (10,))
     m.update(y, t)
@@ -129,6 +138,10 @@ def test():
     print(M.recall(y, t, nc, 'none'))
     print(m.recall('mean'))
     print(M.recall(y, t, nc, 'elementwise_mean'))
+
+    print('\nconfusion matrix:')
+    print(m.confusion_matrix())
+    print(M.confusion_matrix(y, t))
 
 
 if __name__ == '__main__':
