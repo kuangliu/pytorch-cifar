@@ -13,6 +13,8 @@ import argparse
 
 from models import *
 from utils import progress_bar
+from torch.optim.swa_utils import AveragedModel, SWALR
+from torch.optim.lr_scheduler import CosineAnnealingLR
 
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
@@ -23,7 +25,6 @@ args = parser.parse_args()
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 best_acc = 0  # best test accuracy
-start_epoch = 0  # start from epoch 0 or last checkpoint epoch
 
 # Data
 print('==> Preparing data..')
@@ -55,7 +56,7 @@ classes = ('plane', 'car', 'bird', 'cat', 'deer',
 # Model
 print('==> Building model..')
 # net = VGG('VGG19')
-# net = ResNet18()
+net = ResNet18()
 # net = PreActResNet18()
 # net = GoogLeNet()
 # net = DenseNet121()
@@ -67,7 +68,7 @@ print('==> Building model..')
 # net = SENet18()
 # net = ShuffleNetV2(1)
 # net = EfficientNetB0()
-net = RegNetX_200MF()
+# net = RegNetX_200MF()
 net = net.to(device)
 if device == 'cuda':
     net = torch.nn.DataParallel(net)
@@ -85,6 +86,13 @@ if args.resume:
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=args.lr,
                       momentum=0.9, weight_decay=5e-4)
+scheduler = CosineAnnealingLR(optimizer, T_max=100)
+
+# SWA settings
+swa_start = 5
+swa_net = AveragedModel(net)
+swa_scheduler = SWALR(optimizer, anneal_strategy='cos',
+                      anneal_epochs=100, swa_lr=0.001)
 
 
 # Training
@@ -110,17 +118,24 @@ def train(epoch):
         progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
                      % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
+    if epoch > swa_start:
+        swa_net.update_parameters(net)
+        swa_scheduler.step()
+    else:
+        scheduler.step()
+    torch.optim.swa_utils.update_bn(trainloader, swa_net)
+
 
 def test(epoch):
     global best_acc
-    net.eval()
+    swa_net.eval()
     test_loss = 0
     correct = 0
     total = 0
     with torch.no_grad():
         for batch_idx, (inputs, targets) in enumerate(testloader):
             inputs, targets = inputs.to(device), targets.to(device)
-            outputs = net(inputs)
+            outputs = swa_net(inputs)
             loss = criterion(outputs, targets)
 
             test_loss += loss.item()
@@ -146,6 +161,6 @@ def test(epoch):
         best_acc = acc
 
 
-for epoch in range(start_epoch, start_epoch+200):
+for epoch in range(100):
     train(epoch)
     test(epoch)
