@@ -3,6 +3,8 @@
 Note this implementation is not identical to the original paper version.
 But it seems works fine.
 
+See dla.py for the original paper version.
+
 Reference:
     Deep Layer Aggregation. https://arxiv.org/abs/1707.06484
 '''
