@@ -59,7 +59,6 @@ class Tree(nn.Module):
             self.left_node = block(in_channels, out_channels, stride=stride)
             self.right_node = block(out_channels, out_channels, stride=1)
         else:
-            print(level)
             self.root = Root((level+1)*out_channels, out_channels)
             for i in reversed(range(1, level)):
                 subtree = Tree(block, in_channels, out_channels,
