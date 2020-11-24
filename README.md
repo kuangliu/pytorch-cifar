@@ -6,6 +6,15 @@ I'm playing with [PyTorch](http://pytorch.org/) on the CIFAR10 dataset.
 - Python 3.6+
 - PyTorch 1.0+
 
+## Training
+```
+# Start training with: 
+CUDA_VISIBLE_DEVICES=0 python main.py
+
+# You can manually resume the training with: 
+CUDA_VISIBLE_DEVICES=0 python main.py --resume --lr=0.01
+```
+
 ## Accuracy
 | Model             | Acc.        |
 | ----------------- | ----------- |
@@ -22,11 +31,5 @@ I'm playing with [PyTorch](http://pytorch.org/) on the CIFAR10 dataset.
 | [DenseNet121](https://arxiv.org/abs/1608.06993)       | 95.04%      |
 | [PreActResNet18](https://arxiv.org/abs/1603.05027)    | 95.11%      |
 | [DPN92](https://arxiv.org/abs/1707.01629)             | 95.16%      |
+| [DLA](https://arxiv.org/abs/1707.064)                 | 95.47%      |
 
-## Learning rate adjustment
-I manually change the `lr` during training:
-- `0.1` for epoch `[0,150)`
-- `0.01` for epoch `[150,250)`
-- `0.001` for epoch `[250,350)`
-
-Resume the training with `python main.py --resume --lr=0.01`
