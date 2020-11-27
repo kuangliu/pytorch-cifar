@@ -9,10 +9,10 @@ I'm playing with [PyTorch](http://pytorch.org/) on the CIFAR10 dataset.
 ## Training
 ```
 # Start training with: 
-CUDA_VISIBLE_DEVICES=0 python main.py
+python main.py
 
 # You can manually resume the training with: 
-CUDA_VISIBLE_DEVICES=0 python main.py --resume --lr=0.01
+python main.py --resume --lr=0.01
 ```
 
 ## Accuracy
