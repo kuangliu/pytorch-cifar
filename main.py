@@ -9,7 +9,7 @@ import torchvision
 import torchvision.transforms as transforms
 
 import torch.nn.utils.prune as prune
-from prune_params import get_prune_params
+from prune_params import get_prune_params, print_sparsity
 import os
 import argparse
 
@@ -150,9 +150,7 @@ def test(epoch):
                          % (test_loss / (batch_idx + 1), 100. * correct / total, correct, total))
 
     # Save checkpoint.
-    # if args.prune_one_shot:
-    if epoch == 199:
-
+    if args.prune_one_shot:
         # make pruning permanent
         prune_params = get_prune_params(net)
         for prune_param in prune_params:
@@ -171,6 +169,7 @@ def test(epoch):
                 os.mkdir('checkpoint')
             torch.save(state, './checkpoint/ckpt_prune_one_shot.pth')
             pos_best_acc = acc
+            print_sparsity(net)
 
     else:
         acc = 100. * correct / total
@@ -192,6 +191,8 @@ def test(epoch):
 if __name__ == '__main__':
 
     if args.prune_one_shot:
+        print('spartity at the start')
+        print_sparsity(net)
         print('one shot pruning in main')
         parameters_to_prune = get_prune_params(net)
         prune.global_unstructured(parameters_to_prune, pruning_method=prune.L1Unstructured, importance_scores=None,
