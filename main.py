@@ -171,7 +171,7 @@ if __name__ == '__main__':
         prune.global_unstructured(parameters_to_prune, pruning_method=prune.L1Unstructured, importance_scores=None,
                                   amount=0.9)
 
-    for epoch in range(start_epoch, start_epoch + 1):
+    for epoch in range(start_epoch, start_epoch + 200):
         train(epoch)
         test(epoch)
         scheduler.step()
