@@ -152,9 +152,12 @@ def test(epoch):
     # Save checkpoint.
     # if args.prune_one_shot:
     if epoch == 5:
+
+        # make pruning permanent
         prune_params = get_prune_params(net)
         for prune_param in prune_params:
             prune.remove(prune_param, 'weight')
+
         acc = 100. * correct / total
         if acc > pos_best_acc:
             print('Saving..')
