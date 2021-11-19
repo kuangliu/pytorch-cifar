@@ -23,6 +23,11 @@ parser.add_argument('--resume', '-r', action='store_true',
 
 parser.add_argument('--prune_one_shot', '-pos', action='store_true',
                     help='resume from checkpoint with one shot pruning')
+
+parser.add_argument('--prune_amount', '-pr', action='store_true',
+                    help='resume from checkpoint with one shot pruning')
+parser.add_argument('-pa', default=0, type=float, help='pruning amount')
+
 args = parser.parse_args()
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -54,26 +59,15 @@ testset = torchvision.datasets.CIFAR10(
 testloader = torch.utils.data.DataLoader(
     testset, batch_size=256, shuffle=False, num_workers=2)
 
+model_save_path = './checkpoint/ckpt.pth'
+prune_amount = 0
+
 classes = ('plane', 'car', 'bird', 'cat', 'deer',
            'dog', 'frog', 'horse', 'ship', 'truck')
 
 # Model
 print('==> Building model..')
-# net = VGG('VGG19')
 net = ResNet18()
-# net = PreActResNet18()
-# net = GoogLeNet()
-# net = DenseNet121()
-# net = ResNeXt29_2x64d()
-# net = MobileNet()
-# net = MobileNetV2()
-# net = DPN92()
-# net = ShuffleNetG2()
-# net = SENet18()
-# net = ShuffleNetV2(1)
-# net = EfficientNetB0()
-# net = RegNetX_200MF()
-# net = SimpleDLA()
 net = net.to(device)
 if device == 'cuda':
     net = torch.nn.DataParallel(net)
@@ -151,13 +145,14 @@ def test(epoch):
 
     # Save checkpoint.
     if args.prune_one_shot:
-        # make pruning permanent
-        prune_params = get_prune_params(net)
-        for prune_param in prune_params:
-            prune.remove(prune_param[0], 'weight')
 
         acc = 100. * correct / total
         if acc > pos_best_acc:
+            # Remove pruning before saving
+            prune_params = get_prune_params(net)
+            for prune_param in prune_params:
+                prune.remove(prune_param[0], 'weight')
+
             print('Saving..')
             state = {
                 'net': net.state_dict(),
@@ -167,8 +162,13 @@ def test(epoch):
             }
             if not os.path.isdir('checkpoint'):
                 os.mkdir('checkpoint')
-            torch.save(state, './checkpoint/ckpt_prune_one_shot.pth')
+            torch.save(state, './checkpoint/ckpt_prune_one_shot_' + str(int(100 * prune_amount)) + '.pth')
             pos_best_acc = acc
+            print_sparsity(net)
+
+            # apply pruning masks back before continuing (this will be the same since model is already pruned)
+            prune.global_unstructured(get_prune_params(net), pruning_method=prune.L1Unstructured,
+                                      importance_scores=None, amount=prune_amount)
             print_sparsity(net)
 
     else:
@@ -193,10 +193,13 @@ if __name__ == '__main__':
     if args.prune_one_shot:
         print('spartity at the start')
         print_sparsity(net)
+
+        prune_amount = args.pa
+
         print('one shot pruning in main')
         parameters_to_prune = get_prune_params(net)
         prune.global_unstructured(parameters_to_prune, pruning_method=prune.L1Unstructured, importance_scores=None,
-                                  amount=0.9)
+                                  amount=prune_amount)
 
     for epoch in range(start_epoch, start_epoch + 200):
         train(epoch)
