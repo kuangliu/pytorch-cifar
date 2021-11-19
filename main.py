@@ -28,6 +28,7 @@ args = parser.parse_args()
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 best_acc = 0  # best test accuracy
 start_epoch = 0  # start from epoch 0 or last checkpoint epoch
+pos_best_acc = 0  # best accuracy for one shot pruned model
 
 # Data
 print('==> Preparing data..')
@@ -85,6 +86,7 @@ if args.resume:
     checkpoint = torch.load('./checkpoint/ckpt.pth')
     net.load_state_dict(checkpoint['net'])
     best_acc = checkpoint['acc']
+    pos_best_acc = checkpoint['pos_best_acc']
     start_epoch = checkpoint['epoch']
 
 criterion = nn.CrossEntropyLoss()
@@ -98,8 +100,8 @@ if args.prune_one_shot:
     checkpoint = torch.load('./checkpoint/ckpt.pth')
     net.load_state_dict(checkpoint['net'])
     best_acc = checkpoint['acc']
+    pos_best_acc = checkpoint['pos_best_acc']
     start_epoch = checkpoint['epoch']
-
 
 
 # Training
@@ -128,6 +130,7 @@ def train(epoch):
 
 def test(epoch):
     global best_acc
+    global pos_best_acc
     net.eval()
     test_loss = 0
     correct = 0
@@ -147,21 +150,37 @@ def test(epoch):
                          % (test_loss / (batch_idx + 1), 100. * correct / total, correct, total))
 
     # Save checkpoint.
-    acc = 100. * correct / total
-    if acc > best_acc:
-        print('Saving..')
-        state = {
-            'net': net.state_dict(),
-            'acc': acc,
-            'epoch': epoch,
-        }
-        if not os.path.isdir('checkpoint'):
-            os.mkdir('checkpoint')
-        if args.prune_one_shot:
+    if args.prune_one_shot:
+        acc = 100. * correct / total
+        if acc > pos_best_acc:
+            print('Saving..')
+            state = {
+                'net': net.state_dict(),
+                'acc': acc,
+                'epoch': epoch,
+                'pos_best_acc': pos_best_acc
+            }
+            if not os.path.isdir('checkpoint'):
+                os.mkdir('checkpoint')
             torch.save(state, './checkpoint/ckpt_prune_one_shot.pth')
-        else:
+            pos_best_acc = acc
+            
+    else:
+        acc = 100. * correct / total
+        if acc > best_acc:
+            print('Saving..')
+            state = {
+                'net': net.state_dict(),
+                'acc': acc,
+                'epoch': epoch,
+                'pos_best_acc': pos_best_acc
+            }
+            if not os.path.isdir('checkpoint'):
+                os.mkdir('checkpoint')
+
             torch.save(state, './checkpoint/ckpt.pth')
-        best_acc = acc
+            best_acc = acc
+
 
 if __name__ == '__main__':
 
