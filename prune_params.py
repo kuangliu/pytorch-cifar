@@ -1,3 +1,6 @@
+import torch
+
+
 def get_prune_params(net):
     parameters_to_prune = (
         (net.module.conv1, 'weight'),
@@ -48,22 +51,12 @@ def get_prune_params(net):
     )
     return parameters_to_prune
 
+
 def print_sparsity(model):
-    print(
-        "Global sparsity: {:.2f}%".format(
-            100. * float(
-                torch.sum(model.conv1.weight == 0)
-                + torch.sum(model.conv2.weight == 0)
-                + torch.sum(model.fc1.weight == 0)
-                + torch.sum(model.fc2.weight == 0)
-                + torch.sum(model.fc3.weight == 0)
-            )
-            / float(
-                model.conv1.weight.nelement()
-                + model.conv2.weight.nelement()
-                + model.fc1.weight.nelement()
-                + model.fc2.weight.nelement()
-                + model.fc3.weight.nelement()
-            )
-        )
-    )
+    params = get_prune_params(model)
+    zero_weights = 0
+    total_weigts = 0
+    for param in params:
+        zero_weights += torch.sum(param[0].weight == 0)
+        total_weigts += param[0].weight.nelement()
+    print("Global sparsity: {:.2f}%".format(100. * zero_weights / total_weigts))
