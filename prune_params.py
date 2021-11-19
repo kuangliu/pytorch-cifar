@@ -47,3 +47,23 @@ def get_prune_params(net):
 
     )
     return parameters_to_prune
+
+def print_sparsity(model):
+    print(
+        "Global sparsity: {:.2f}%".format(
+            100. * float(
+                torch.sum(model.conv1.weight == 0)
+                + torch.sum(model.conv2.weight == 0)
+                + torch.sum(model.fc1.weight == 0)
+                + torch.sum(model.fc2.weight == 0)
+                + torch.sum(model.fc3.weight == 0)
+            )
+            / float(
+                model.conv1.weight.nelement()
+                + model.conv2.weight.nelement()
+                + model.fc1.weight.nelement()
+                + model.fc2.weight.nelement()
+                + model.fc3.weight.nelement()
+            )
+        )
+    )
