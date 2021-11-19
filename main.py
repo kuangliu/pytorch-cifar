@@ -151,7 +151,7 @@ def test(epoch):
 
     # Save checkpoint.
     # if args.prune_one_shot:
-    if epoch == 5:
+    if epoch == 202:
 
         # make pruning permanent
         prune_params = get_prune_params(net)
