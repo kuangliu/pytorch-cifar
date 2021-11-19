@@ -86,7 +86,7 @@ if args.resume:
     checkpoint = torch.load('./checkpoint/ckpt.pth')
     net.load_state_dict(checkpoint['net'])
     best_acc = checkpoint['acc']
-    #pos_best_acc = checkpoint['pos_best_acc']
+    # pos_best_acc = checkpoint['pos_best_acc']
     start_epoch = checkpoint['epoch']
 
 criterion = nn.CrossEntropyLoss()
@@ -100,7 +100,7 @@ if args.prune_one_shot:
     checkpoint = torch.load('./checkpoint/ckpt.pth')
     net.load_state_dict(checkpoint['net'])
     best_acc = checkpoint['acc']
-    #pos_best_acc = checkpoint['pos_best_acc']
+    # pos_best_acc = checkpoint['pos_best_acc']
     start_epoch = checkpoint['epoch']
 
 
@@ -150,7 +150,11 @@ def test(epoch):
                          % (test_loss / (batch_idx + 1), 100. * correct / total, correct, total))
 
     # Save checkpoint.
-    if args.prune_one_shot:
+    # if args.prune_one_shot:
+    if epoch == 5:
+        prune_params = get_prune_params(net)
+        for prune_param in prune_params:
+            prune.remove(prune_param, 'weight')
         acc = 100. * correct / total
         if acc > pos_best_acc:
             print('Saving..')
@@ -158,7 +162,7 @@ def test(epoch):
                 'net': net.state_dict(),
                 'acc': acc,
                 'epoch': epoch,
-                'pos_best_acc': pos_best_acc
+                'pos_best_acc': pos_best_acc,
             }
             if not os.path.isdir('checkpoint'):
                 os.mkdir('checkpoint')
