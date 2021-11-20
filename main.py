@@ -24,6 +24,9 @@ parser.add_argument('--resume', '-r', action='store_true',
 parser.add_argument('--prune_one_shot', '-pos', action='store_true',
                     help='resume from checkpoint with one shot pruning')
 
+parser.add_argument('--prune_iterative', '-pit', action='store_true',
+                    help='resume from checkpoint with iterative pruning')
+
 parser.add_argument('--prune_amount', '-pr', action='store_true',
                     help='resume from checkpoint with one shot pruning')
 parser.add_argument('-pa', default=0, type=float, help='pruning amount')
@@ -144,7 +147,33 @@ def test(epoch):
                          % (test_loss / (batch_idx + 1), 100. * correct / total, correct, total))
 
     # Save checkpoint.
-    if args.prune_one_shot:
+    if args.prune_iterative:
+        acc = 100. * correct / total
+        if acc > pos_best_acc:
+            # Remove pruning before saving
+            prune_params = get_prune_params(net)
+            for prune_param in prune_params:
+                prune.remove(prune_param[0], 'weight')
+
+            print('Saving..')
+            state = {
+                'net': net.state_dict(),
+                'acc': acc,
+                'epoch': epoch,
+                'pos_best_acc': pos_best_acc,
+            }
+            if not os.path.isdir('checkpoint'):
+                os.mkdir('checkpoint')
+            torch.save(state, './checkpoint/ckpt_prune_iterative_' + str(int(100 * prune_amount)) + '.pth')
+            pos_best_acc = acc
+            print_sparsity(net)
+
+            # apply pruning masks back before continuing (this will be the same since model is already pruned)
+            prune.global_unstructured(get_prune_params(net), pruning_method=prune.L1Unstructured,
+                                      importance_scores=None, amount=prune_amount)
+            print_sparsity(net)
+
+    elif args.prune_one_shot:
 
         acc = 100. * correct / total
         if acc > pos_best_acc:
@@ -189,19 +218,38 @@ def test(epoch):
 
 
 if __name__ == '__main__':
+    # num_epoch_train, num_epoch_one_shot, num_epoch_iterative = (200, 100, 25)
+    num_epoch_train, num_epoch_one_shot, num_epoch_iterative = (4, 4, 4)
+    # Iterative pruning
+    if args.prune_iterative:
+        total_prune_amount = args.pa
 
-    if args.prune_one_shot:
-        print('spartity at the start')
-        print_sparsity(net)
+        num_pruning_iter = 4
+        # increase the pruning amount over num_pruning_iter iterations
+        for prune_x in range(num_pruning_iter):
+            prune_amount = (prune_x + 1) * total_prune_amount / num_pruning_iter
+            parameters_to_prune = get_prune_params(net)
+            prune.global_unstructured(parameters_to_prune, pruning_method=prune.L1Unstructured, importance_scores=None,
+                                      amount=prune_amount)
+            for epoch in range(start_epoch, start_epoch + num_epoch_iterative):
+                train(epoch)
+                test(epoch)
+                scheduler.step()
 
+    # One shot pruning and retraining
+    elif args.prune_one_shot:
         prune_amount = args.pa
-
-        print('one shot pruning in main')
         parameters_to_prune = get_prune_params(net)
         prune.global_unstructured(parameters_to_prune, pruning_method=prune.L1Unstructured, importance_scores=None,
                                   amount=prune_amount)
+        for epoch in range(start_epoch, start_epoch + num_epoch_one_shot):
+            train(epoch)
+            test(epoch)
+            scheduler.step()
 
-    for epoch in range(start_epoch, start_epoch + 200):
-        train(epoch)
-        test(epoch)
-        scheduler.step()
+    # No pruning
+    else:
+        for epoch in range(start_epoch, start_epoch + num_epoch_train):
+            train(epoch)
+            test(epoch)
+            scheduler.step()
