@@ -216,8 +216,8 @@ def test(epoch):
 
 
 if __name__ == '__main__':
-    # num_epoch_train, num_epoch_one_shot, num_epoch_iterative = (200, 100, 25)
-    num_epoch_train, num_epoch_one_shot, num_epoch_iterative = (4, 4, 4)
+    num_epoch_train, num_epoch_one_shot, num_epoch_iterative = (200, 100, 25)
+    # num_epoch_train, num_epoch_one_shot, num_epoch_iterative = (4, 4, 4)
     # Iterative pruning
     if args.prune_iterative:
         total_prune_amount = args.pa
