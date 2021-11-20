@@ -171,7 +171,6 @@ def test(epoch):
             # apply pruning masks back before continuing (this will be the same since model is already pruned)
             prune.global_unstructured(get_prune_params(net), pruning_method=prune.L1Unstructured,
                                       importance_scores=None, amount=prune_amount)
-            print_sparsity(net)
 
     elif args.prune_one_shot:
 
@@ -198,7 +197,6 @@ def test(epoch):
             # apply pruning masks back before continuing (this will be the same since model is already pruned)
             prune.global_unstructured(get_prune_params(net), pruning_method=prune.L1Unstructured,
                                       importance_scores=None, amount=prune_amount)
-            print_sparsity(net)
 
     else:
         acc = 100. * correct / total
