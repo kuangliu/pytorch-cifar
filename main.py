@@ -19,6 +19,13 @@ parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
 parser.add_argument('--resume', '-r', action='store_true',
                     help='resume from checkpoint')
+parser.add_argument('--net', default='SimpleDLA') 
+parser.add_argument('--train', default=False)
+parser.add_argument('--test', default=False)
+parser.add_argument('--epochs', type=int, default=200)
+parser.add_argument('--prune', type=bool, default=False)
+parser.add_argument('--prune_rate', type=float, default=0.30)
+
 args = parser.parse_args()
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -54,21 +61,42 @@ classes = ('plane', 'car', 'bird', 'cat', 'deer',
 
 # Model
 print('==> Building model..')
-# net = VGG('VGG19')
-# net = ResNet18()
-# net = PreActResNet18()
-# net = GoogLeNet()
-# net = DenseNet121()
-# net = ResNeXt29_2x64d()
-# net = MobileNet()
-# net = MobileNetV2()
-# net = DPN92()
-# net = ShuffleNetG2()
-# net = SENet18()
-# net = ShuffleNetV2(1)
-# net = EfficientNetB0()
-# net = RegNetX_200MF()
-net = SimpleDLA()
+if args.net == 'VGG19': net = VGG('VGG19')
+elif args.net == 'ResNet18': net = ResNet18()
+elif args.net == 'PreActResNet18': net = PreActResNet18()
+elif args.net == 'GoogLeNet': net = GoogLeNet()
+elif args.net == 'DenseNet121': net = DenseNet121()
+elif args.net == 'ResNeXt29_2x64d': net = ResNeXt29_2x64d()
+elif args.net == 'MobileNet': net = MobileNet()
+elif args.net == 'MobileNetV2': net = MobileNetV2()
+elif args.net == 'DPN92': net = DPN92()
+elif args.net == 'ShuffleNetG2': net = ShuffleNetG2()
+elif args.net == 'SENet18': net = SENet18()
+elif args.net == 'ShuffleNetV2': net = ShuffleNetV2(1)
+elif args.net == 'EfficientNetB0': net = EfficientNetB0()
+elif args.net == 'RegNetX_200MF': net = RegNetX_200MF()
+elif args.net == 'SimpleDLA': net = SimpleDLA()
+
+# Borrow sparsity() and prune() from
+# https://github.com/ultralytics/yolov5/blob/a2a1ed201d150343a4f9912d644be2b210206984/utils/torch_utils.py#L1
+def sparsity(model):
+    # Return global model sparsity
+    a, b = 0, 0
+    for p in model.parameters():
+        a += p.numel()
+        b += (p == 0).sum()
+    return b / a
+
+def prune(model, amount=0.3):
+    # Prune model to requested global sparsity
+    import torch.nn.utils.prune as prune
+    print('Pruning model... ', end='')
+    for name, m in model.named_modules():
+        if isinstance(m, nn.Conv2d):
+            prune.l1_unstructured(m, name='weight', amount=amount)  # prune
+            prune.remove(m, 'weight')  # make permanent
+            print(' %.3g global sparsity' % sparsity(model))
+
 net = net.to(device)
 if device == 'cuda':
     net = torch.nn.DataParallel(net)
@@ -78,7 +106,7 @@ if args.resume:
     # Load checkpoint.
     print('==> Resuming from checkpoint..')
     assert os.path.isdir('checkpoint'), 'Error: no checkpoint directory found!'
-    checkpoint = torch.load('./checkpoint/ckpt.pth')
+    checkpoint = torch.load('./checkpoint/{}_ckpt.pth'.format(args.net))
     net.load_state_dict(checkpoint['net'])
     best_acc = checkpoint['acc']
     start_epoch = checkpoint['epoch']
@@ -115,6 +143,9 @@ def train(epoch):
 
 def test(epoch):
     global best_acc
+    if args.prune:
+        prune(net, args.prune_rate)
+
     net.eval()
     test_loss = 0
     correct = 0
@@ -144,11 +175,13 @@ def test(epoch):
         }
         if not os.path.isdir('checkpoint'):
             os.mkdir('checkpoint')
-        torch.save(state, './checkpoint/ckpt.pth')
+        torch.save(state, './checkpoint/{}_ckpt.pth'.format(args.net))
         best_acc = acc
 
 
-for epoch in range(start_epoch, start_epoch+200):
-    train(epoch)
-    test(epoch)
+for epoch in range(args.epochs):
+    if args.train: train(epoch)
+    if args.test:
+        test(epoch)
+        if not args.train: break
     scheduler.step()
