@@ -19,12 +19,12 @@ parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
 parser.add_argument('--resume', '-r', action='store_true',
                     help='resume from checkpoint')
-parser.add_argument('--net', default='SimpleDLA') 
-parser.add_argument('--train', default=False)
-parser.add_argument('--test', default=False)
+parser.add_argument('--net', default='SimpleDLA')
+parser.add_argument('--train', type=bool, default=False)
+parser.add_argument('--test', type=bool, default=False)
 parser.add_argument('--epochs', type=int, default=200)
 parser.add_argument('--prune', type=bool, default=False)
-parser.add_argument('--prune_rate', type=float, default=0.30)
+parser.add_argument('--pruning_rate', type=float, default=0.30)
 
 args = parser.parse_args()
 
@@ -78,7 +78,7 @@ elif args.net == 'RegNetX_200MF': net = RegNetX_200MF()
 elif args.net == 'SimpleDLA': net = SimpleDLA()
 
 # Borrow sparsity() and prune() from
-# https://github.com/ultralytics/yolov5/blob/a2a1ed201d150343a4f9912d644be2b210206984/utils/torch_utils.py#L1
+# https://github.com/ultralytics/yolov5/blob/a2a1ed201d150343a4f9912d644be2b210206984/utils/torch_utils.py#L174
 def sparsity(model):
     # Return global model sparsity
     a, b = 0, 0
