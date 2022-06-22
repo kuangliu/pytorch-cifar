@@ -9,10 +9,16 @@ I'm playing with [PyTorch](http://pytorch.org/) on the CIFAR10 dataset.
 ## Training
 ```
 # Start training with: 
-python main.py
+python main.py --net VGG16 --train True --test True
 
 # You can manually resume the training with: 
-python main.py --resume --lr=0.01
+python main.py --net VGG16 --train True --test True --resume --lr=0.01
+
+# Test only
+python main.py --net VGG16 --test True
+
+# Test only with pruning (0.3)
+python main.py --net VGG16 --test True --prune True --pruning_rate 0.3
 ```
 
 ## Accuracy
@@ -33,3 +39,4 @@ python main.py --resume --lr=0.01
 | [DPN92](https://arxiv.org/abs/1707.01629)             | 95.16%      |
 | [DLA](https://arxiv.org/pdf/1707.06484.pdf)           | 95.47%      |
 
+Pruning [Reference Link](https://github.com/ultralytics/yolov5/blob/a2a1ed201d150343a4f9912d644be2b210206984/utils/torch_utils.py#L174)
