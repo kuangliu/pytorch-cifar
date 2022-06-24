@@ -110,13 +110,10 @@ if args.resume:
     assert os.path.isdir('checkpoint'), 'Error: no checkpoint directory found!'
   
     print('\n\ndevice: ', device)  
-    checkpoint = torch.load('./checkpoint/{}_ckpt.pth'.format(args.net), map_location='cpu') # device)
-    # print('\n\n checkpoint.keys(): ', checkpoint.keys())
-    # print('\n\n checkpoint[net].keys(): ', checkpoint['net'].keys())
+    checkpoint = torch.load('./checkpoint/{}_ckpt.pth'.format(args.net), map_location=device)
     net.load_state_dict(checkpoint['net'], strict=False)
     best_acc = checkpoint['acc']
     start_epoch = checkpoint['epoch']
-    # net = net.to(device)
 
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=args.lr,
