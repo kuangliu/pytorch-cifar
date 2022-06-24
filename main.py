@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
+from torchinfo import summary
 
 import torchvision
 import torchvision.transforms as transforms
@@ -149,6 +150,8 @@ def test(epoch):
     global best_acc
     if args.prune:
         prune(net, args.pruning_rate)
+    input_size = (1, 3, 32, 32)
+    summary(net, input_size) 
 
     net.eval()
     test_loss = 0
