@@ -14,7 +14,7 @@ import argparse
 
 from models import *
 from utils import progress_bar
-
+import time
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
@@ -100,6 +100,27 @@ def prune(model, amount=0.3):
             prune.remove(m, 'weight')  # make permanent
             print(' %.3g global sparsity' % sparsity(model))
 
+
+def count_layer_params(model, layer_name=nn.Conv2d):
+    print('\n\n layer_name: ', layer_name)
+    total_params = 0
+    total_traina_params = 0
+    n_layers = 0
+    for name, m in model.named_modules():
+        if isinstance(m, layer_name): 
+            # print('\nm:', m)
+            # print('\ndir(m): ', dir(m))
+            
+            for name, parameter in m.named_parameters():
+                params = parameter.numel()
+                total_params += params    
+                if not parameter.requires_grad: continue
+                n_layers += 1
+                total_traina_params += params
+    print('\n\nlayer_name: {}, total_params: {}, total_traina_params: {}, n_layers: {}'.\
+        format(layer_name, total_params, total_traina_params, n_layers))
+    time.sleep(100)
+
 net = net.to(device)
 if device == 'cuda':
     net = torch.nn.DataParallel(net)
@@ -152,6 +173,8 @@ def test(epoch):
         prune(net, args.pruning_rate)
     input_size = (1, 3, 32, 32)
     summary(net, input_size) 
+    count_layer_params(net)
+
 
     net.eval()
     test_loss = 0
