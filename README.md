@@ -9,16 +9,22 @@ I'm playing with [PyTorch](http://pytorch.org/) on the CIFAR10 dataset.
 ## Training
 ```
 # Start training with: 
-python main.py --net VGG16 --train True --test True
+python main.py --net ResNet18 --train --test
 
 # You can manually resume the training with: 
-python main.py --net VGG16 --train True --test True --resume --lr=0.01
+python main.py --net ResNet18 --train --test --resume --lr=0.01
+```
 
-# Test only
-python main.py --net VGG16 --test True
+## Testing
+```
+# Test only on GPU
+python main.py --net ResNet18 --test
 
-# Test only with pruning (0.3)
-python main.py --net VGG16 --test True --prune True --pruning_rate 0.3
+# Test only on GPU with pruning (0.3)
+python main.py --net ResNet18 --test --prune --pruning_rate 0.3
+
+# Test only on CPU
+python main.py --net ResNet18 --test --select_device cpu
 ```
 
 ## Accuracy
