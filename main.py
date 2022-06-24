@@ -20,15 +20,17 @@ parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
 parser.add_argument('--resume', '-r', action='store_true',
                     help='resume from checkpoint')
 parser.add_argument('--net', default='SimpleDLA')
-parser.add_argument('--train', type=bool, default=False)
-parser.add_argument('--test', type=bool, default=False)
+parser.add_argument('--train', action='store_true')
+parser.add_argument('--test', action='store_true')
 parser.add_argument('--epochs', type=int, default=200)
-parser.add_argument('--prune', type=bool, default=False)
+parser.add_argument('--prune', action='store_true')
 parser.add_argument('--pruning_rate', type=float, default=0.30)
+parser.add_argument('--test_batch_size', type=int, default=100)
+parser.add_argument('--select_device', type=str, default='gpu', help='gpu | cpu')
 
 args = parser.parse_args()
 
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+device = 'cuda' if torch.cuda.is_available() and args.select_device == 'gpu' else 'cpu'
 best_acc = 0  # best test accuracy
 start_epoch = 0  # start from epoch 0 or last checkpoint epoch
 
@@ -54,7 +56,7 @@ trainloader = torch.utils.data.DataLoader(
 testset = torchvision.datasets.CIFAR10(
     root='./data', train=False, download=True, transform=transform_test)
 testloader = torch.utils.data.DataLoader(
-    testset, batch_size=100, shuffle=False, num_workers=2)
+    testset, batch_size=args.test_batch_size, shuffle=False, num_workers=1)
 
 classes = ('plane', 'car', 'bird', 'cat', 'deer',
            'dog', 'frog', 'horse', 'ship', 'truck')
@@ -106,10 +108,15 @@ if args.resume:
     # Load checkpoint.
     print('==> Resuming from checkpoint..')
     assert os.path.isdir('checkpoint'), 'Error: no checkpoint directory found!'
-    checkpoint = torch.load('./checkpoint/{}_ckpt.pth'.format(args.net))
-    net.load_state_dict(checkpoint['net'])
+  
+    print('\n\ndevice: ', device)  
+    checkpoint = torch.load('./checkpoint/{}_ckpt.pth'.format(args.net), map_location='cpu') # device)
+    # print('\n\n checkpoint.keys(): ', checkpoint.keys())
+    # print('\n\n checkpoint[net].keys(): ', checkpoint['net'].keys())
+    net.load_state_dict(checkpoint['net'], strict=False)
     best_acc = checkpoint['acc']
     start_epoch = checkpoint['epoch']
+    # net = net.to(device)
 
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=args.lr,
@@ -152,6 +159,7 @@ def test(epoch):
     total = 0
     with torch.no_grad():
         for batch_idx, (inputs, targets) in enumerate(testloader):
+            print('device: ', device)
             inputs, targets = inputs.to(device), targets.to(device)
             outputs = net(inputs)
             loss = criterion(outputs, targets)
@@ -178,7 +186,7 @@ def test(epoch):
         torch.save(state, './checkpoint/{}_ckpt.pth'.format(args.net))
         best_acc = acc
 
-
+print('\n\nargs.train: ', args.train, ', args.test:', args.test)
 for epoch in range(args.epochs):
     if args.train: train(epoch)
     if args.test:
