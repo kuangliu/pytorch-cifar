@@ -14,12 +14,16 @@ import argparse
 from models import *
 from utils import progress_bar
 
+import wandb
+wandb.init(project="cifar-test")
+
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
 parser.add_argument('--resume', '-r', action='store_true',
                     help='resume from checkpoint')
 args = parser.parse_args()
+
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 best_acc = 0  # best test accuracy
@@ -88,6 +92,13 @@ optimizer = optim.SGD(net.parameters(), lr=args.lr,
                       momentum=0.9, weight_decay=5e-4)
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
 
+wandb.config = {
+  "learning_rate": args.lr,
+  "epochs": 100,
+  "batch_size": 128
+}
+
+ram = 0
 
 # Training
 def train(epoch):
@@ -103,8 +114,8 @@ def train(epoch):
         loss = criterion(outputs, targets)
         loss.backward()
         optimizer.step()
-
         train_loss += loss.item()
+        wandb.log({"loss": loss.item()})
         _, predicted = outputs.max(1)
         total += targets.size(0)
         correct += predicted.eq(targets).sum().item()
@@ -132,6 +143,7 @@ def test(epoch):
 
             progress_bar(batch_idx, len(testloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
                          % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
+            wandb.log({"test accuracy": 100.*correct/total})
 
     # Save checkpoint.
     acc = 100.*correct/total
