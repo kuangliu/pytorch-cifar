@@ -27,6 +27,9 @@ python main.py --net ResNet18 --test --prune --pruning_rate 0.3
 python main.py --net ResNet18 --test --select_device cpu
 ```
 
+# Trained Weights
+[Google Drive](https://drive.google.com/drive/folders/1DRcb7uw1goot8doydHAc0ip3us5zjilk?usp=sharing)
+
 ## Accuracy
 | Model             | Acc.        |
 | ----------------- | ----------- |
