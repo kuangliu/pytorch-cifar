@@ -27,7 +27,9 @@ from cifar import CIFAR10_C
 parser = argparse.ArgumentParser(description='Model Evaluation')
 parser.add_argument('--checkpoint', default="./checkpoint/ckpt.pth", type=str)
 parser.add_argument('--model', default="cf10-densenet", type=str)
-parser.add_argument('--dataset', default="cf10c-motion", type=str)
+parser.add_argument('--dataset', default="cf10c-gaussian_noise", type=str)
+parser.add_argument('--data_fp', default="/nlp/scr/jiayili/data/CIFAR-10-C/gaussian_noise.npy", type=str)
+parser.add_argument('--labels_fp', default="/nlp/scr/jiayili/data/CIFAR-10-C/labels.npy", type=str)
 
 args = parser.parse_args()
 
@@ -47,8 +49,8 @@ transform_test = transforms.Compose([
 # testset = torchvision.datasets.CIFAR10(
 #     root='/jagupard11/scr0/jiayili', train=False, download=True, transform=transform_test)
 
-rt = "/nlp/scr/jiayili/data/CIFAR-10-C/motion_blur.npy"
-labels_rt = "/nlp/scr/jiayili/data/CIFAR-10-C/labels.npy"
+rt = args.data_fp
+labels_rt = args.labels_fp
 
 testset = CIFAR10_C(root = rt, labels_root = labels_rt, transform = transform_test)
 
