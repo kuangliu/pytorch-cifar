@@ -18,14 +18,16 @@ import argparse
 from models import *
 from utils import progress_bar
 
+from cifar import CIFAR10_C 
+
 # import wandb
 # wandb.init(project="cifar-test")
 
 
 parser = argparse.ArgumentParser(description='Model Evaluation')
 parser.add_argument('--checkpoint', default="./checkpoint/ckpt.pth", type=str)
-parser.add_argument('--model', default="cifar-10-densenet", type=str)
-parser.add_argument('--dataset', default="cifar-10", type=str)
+parser.add_argument('--model', default="cf10-densenet", type=str)
+parser.add_argument('--dataset', default="cf10c-motion", type=str)
 
 args = parser.parse_args()
 
@@ -42,8 +44,14 @@ transform_test = transforms.Compose([
     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
 ])
 
-testset = torchvision.datasets.CIFAR10(
-    root='/jagupard27/scr1/jiayili', train=False, download=True, transform=transform_test)
+# testset = torchvision.datasets.CIFAR10(
+#     root='/jagupard11/scr0/jiayili', train=False, download=True, transform=transform_test)
+
+rt = "/nlp/scr/jiayili/data/CIFAR-10-C/motion_blur.npy"
+labels_rt = "/nlp/scr/jiayili/data/CIFAR-10-C/labels.npy"
+
+testset = CIFAR10_C(root = rt, labels_root = labels_rt, transform = transform_test)
+
 testloader = torch.utils.data.DataLoader(
     testset, batch_size=100, shuffle=False, num_workers=2)
 
@@ -80,7 +88,7 @@ if True:
     net.load_state_dict(checkpoint['net'])
     best_acc = checkpoint['acc']
     epoch = checkpoint['epoch']
-    print("Finish Loading model with accuracy {}, achieved from epoch {}".format(best_acc, epoch))
+    print("Finish Loading model {} with accuracy {}, achieved from epoch {}".format(args.model, best_acc, epoch))
 
 criterion = nn.CrossEntropyLoss()
 
@@ -104,11 +112,11 @@ def test():
             inputs, targets = inputs.to(device), targets.to(device)
             outputs = net(inputs)
             if not labels_exist:
-                t_np = targets.numpy()
+                t_np = targets.cpu().numpy()
                 t_df = pd.DataFrame(t_np)
                 t_df.to_csv(labels_fp, mode='a', index=False, header=False)
             if not preds_exist:
-                o_np = outputs.numpy()
+                o_np = outputs.cpu().numpy()
                 o_df = pd.DataFrame(o_np)
                 o_df.to_csv(preds_fp, mode='a', index=False, header=False)
 
@@ -121,5 +129,6 @@ def test():
             progress_bar(batch_idx, len(testloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
                          % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
+    print("Accuracy of {} on {} is {}".format(args.model, args.dataset, 100.*correct/total))
 
 test()
