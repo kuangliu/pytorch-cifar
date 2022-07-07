@@ -193,7 +193,7 @@ if args.resume:
     assert os.path.isdir('checkpoint'), 'Error: no checkpoint directory found!'
 
     print('\n\ndevice: ', device)
-    checkpoint = torch.load('./checkpoint/{}_ckpt.pth'.format(args.net), map_location=device)
+    checkpoint = torch.load('./checkpoint/{}_n_cls_{}_ckpt.pth'.format(args.net, args.num_class), map_location=device)
     net.load_state_dict(checkpoint['net'], strict=False)
     best_acc = checkpoint['acc']
     start_epoch = checkpoint['epoch']
@@ -289,7 +289,7 @@ def test(epoch):
         }
         if not os.path.isdir('checkpoint'):
             os.mkdir('checkpoint')
-        torch.save(state, './checkpoint/{}_ckpt.pth'.format(args.net))
+        torch.save(state, './checkpoint/{}_n_cls_{}_ckpt.pth'.format(args.net, args.num_class))
         best_acc = acc
 
 print('\n\nargs.train: ', args.train, ', args.test:', args.test)
