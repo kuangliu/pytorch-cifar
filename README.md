@@ -11,6 +11,9 @@ I'm playing with [PyTorch](http://pytorch.org/) on the CIFAR10 dataset.
 # Start training with: 
 python main.py --net ResNet18 --train --test
 
+# Start training for n_cls experiments:
+python main_n_cls.py --net MobileNetV2 --train --test --num_class 5
+
 # You can manually resume the training with: 
 python main.py --net ResNet18 --train --test --resume --lr=0.01
 ```
