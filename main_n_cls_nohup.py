@@ -227,7 +227,7 @@ def train(epoch):
         train() - inputs.shape:  torch.Size([128, 3, 32, 32])
         train() - targets.shape:  torch.Size([128])
         '''
-        if inputs is not None and targets is not None:
+        if inputs.size()[0] > 0 and targets.size()[0] > 0:
             optimizer.zero_grad()
             outputs = net(inputs)
             loss = criterion(outputs, targets)
@@ -265,7 +265,7 @@ def test(epoch):
                 inputs = test_inputs_n_cls[batch_idx * args.test_batch_size : (batch_idx + 1) * args.test_batch_size]
                 targets = test_targets_n_cls[batch_idx * args.test_batch_size : (batch_idx + 1) * args.test_batch_size]
 
-            if inputs is not None and targets is not None:
+            if inputs.size()[0] > 0 and targets.size()[0] > 0:
                 outputs = net(inputs)
                 loss = criterion(outputs, targets)
 
