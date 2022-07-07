@@ -213,6 +213,7 @@ def train(epoch):
     # for batch_idx, (inputs, targets) in enumerate(trainloader):
     for batch_idx in range(len(train_inputs_n_cls) // args.train_batch_size):
         # inputs, targets = inputs.to(device), targets.to(device)
+        inputs, targets = None, None
         if (batch_idx + 1) * args.train_batch_size < len(train_inputs_n_cls):
             inputs = train_inputs_n_cls[batch_idx * args.train_batch_size : (batch_idx + 1) * args.train_batch_size]
             targets = train_targets_n_cls[batch_idx * args.train_batch_size : (batch_idx + 1) * args.train_batch_size]
@@ -226,17 +227,17 @@ def train(epoch):
         train() - inputs.shape:  torch.Size([128, 3, 32, 32])
         train() - targets.shape:  torch.Size([128])
         '''
+        if inputs is not None and targets is not None:
+            optimizer.zero_grad()
+            outputs = net(inputs)
+            loss = criterion(outputs, targets)
+            loss.backward()
+            optimizer.step()
 
-        optimizer.zero_grad()
-        outputs = net(inputs)
-        loss = criterion(outputs, targets)
-        loss.backward()
-        optimizer.step()
-
-        train_loss += loss.item()
-        _, predicted = outputs.max(1)
-        total += targets.size(0)
-        correct += predicted.eq(targets).sum().item()
+            train_loss += loss.item()
+            _, predicted = outputs.max(1)
+            total += targets.size(0)
+            correct += predicted.eq(targets).sum().item()
 
 
 def test(epoch):
@@ -256,6 +257,7 @@ def test(epoch):
         for batch_idx in range(len(test_inputs_n_cls) // args.test_batch_size + 1):
             print('device: ', device)
             # inputs, targets = inputs.to(device), targets.to(device)
+            inputs, targets = None, None
             if (batch_idx + 1) * args.train_batch_size < len(test_inputs_n_cls):
                 inputs = test_inputs_n_cls[batch_idx * args.test_batch_size :]
                 targets = test_targets_n_cls[batch_idx * args.test_batch_size :]
@@ -263,13 +265,14 @@ def test(epoch):
                 inputs = test_inputs_n_cls[batch_idx * args.test_batch_size : (batch_idx + 1) * args.test_batch_size]
                 targets = test_targets_n_cls[batch_idx * args.test_batch_size : (batch_idx + 1) * args.test_batch_size]
 
-            outputs = net(inputs)
-            loss = criterion(outputs, targets)
+            if inputs is not None and targets is not None:
+                outputs = net(inputs)
+                loss = criterion(outputs, targets)
 
-            test_loss += loss.item()
-            _, predicted = outputs.max(1)
-            total += targets.size(0)
-            correct += predicted.eq(targets).sum().item()
+                test_loss += loss.item()
+                _, predicted = outputs.max(1)
+                total += targets.size(0)
+                correct += predicted.eq(targets).sum().item()
 
     # Save checkpoint.
     acc = 100.*correct/total
