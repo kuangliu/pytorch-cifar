@@ -37,6 +37,7 @@ def ATC_accuracy(source_probs, source_labels, target_probs, score_function="MC")
         score_function: string, either "MC" or "NE"
     # Returns
         ATC_acc: float
+        ATC_threshold: float 
     """
 
     if score_function=="MC": 
@@ -50,8 +51,8 @@ def ATC_accuracy(source_probs, source_labels, target_probs, score_function="MC")
     source_preds = np.argmax(source_probs, axis=-1)
 
     _, ATC_threshold = find_threshold_balance(source_score, source_labels == source_preds)
-    print("Threshold is {}".format(ATC_threshold))
+    #print("Threshold is {}".format(ATC_threshold))
 
     ATC_acc = np.mean(target_score >= ATC_threshold)*100.0
 
-    return ATC_acc
+    return ATC_acc, ATC_threshold
