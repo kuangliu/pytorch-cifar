@@ -212,7 +212,6 @@ def train(epoch):
     total = 0
     # for batch_idx, (inputs, targets) in enumerate(trainloader):
     for batch_idx in range(len(train_inputs_n_cls) // args.train_batch_size):
-        # inputs, targets = inputs.to(device), targets.to(device)
         inputs, targets = None, None
         if (batch_idx + 1) * args.train_batch_size < len(train_inputs_n_cls):
             inputs = train_inputs_n_cls[batch_idx * args.train_batch_size : (batch_idx + 1) * args.train_batch_size]
@@ -228,6 +227,7 @@ def train(epoch):
         train() - targets.shape:  torch.Size([128])
         '''
         if inputs.size()[0] > 0 and targets.size()[0] > 0:
+            inputs, targets = inputs.to(device), targets.to(device)
             optimizer.zero_grad()
             outputs = net(inputs)
             loss = criterion(outputs, targets)
@@ -256,7 +256,6 @@ def test(epoch):
         # for batch_idx, (inputs, targets) in enumerate(testloader):
         for batch_idx in range(len(test_inputs_n_cls) // args.test_batch_size + 1):
             print('device: ', device)
-            # inputs, targets = inputs.to(device), targets.to(device)
             inputs, targets = None, None
             if (batch_idx + 1) * args.train_batch_size < len(test_inputs_n_cls):
                 inputs = test_inputs_n_cls[batch_idx * args.test_batch_size :]
@@ -266,6 +265,7 @@ def test(epoch):
                 targets = test_targets_n_cls[batch_idx * args.test_batch_size : (batch_idx + 1) * args.test_batch_size]
 
             if inputs.size()[0] > 0 and targets.size()[0] > 0:
+                inputs, targets = inputs.to(device), targets.to(device)
                 outputs = net(inputs)
                 loss = criterion(outputs, targets)
 
