@@ -287,7 +287,7 @@ def test(epoch):
         if not os.path.isdir('checkpoint'):
             os.mkdir('checkpoint')
         torch.save(state, './checkpoint/{}_n_cls_{}_epoch_{}_ckpt.pth'.\
-            format(args.net, args.num_class, str(args.save_model_epoch_interval)))
+            format(args.net, args.num_class, str(epoch)))
         best_acc = acc
     if acc > best_acc:
         print('Saving..')
@@ -298,7 +298,7 @@ def test(epoch):
         }
         if not os.path.isdir('checkpoint'):
             os.mkdir('checkpoint')
-        torch.save(state, './checkpoint/{}_n_cls_{}_best_ckpt.pth'.\
+        torch.save(state, './checkpoint/{}_n_cls_{}_epoch_best_ckpt.pth'.\
             format(args.net, args.num_class))
         best_acc = acc
 
