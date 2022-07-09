@@ -30,6 +30,8 @@ parser.add_argument('--train_batch_size', type=int, default=128)
 parser.add_argument('--test_batch_size', type=int, default=100)
 parser.add_argument('--select_device', type=str, default='gpu', help='gpu | cpu')
 parser.add_argument('--num_class', type=int, default=10)
+parser.add_argument('--save_model_epoch_interval', type=int, default=10)
+parser.add_argument('--load_epoch', type=str, default='best', help='best | <epoch>')
 
 args = parser.parse_args()
 
@@ -275,7 +277,7 @@ def test(epoch):
 
     # Save checkpoint.
     acc = 100.*correct/total
-    if epoch == 0 or acc > best_acc:
+    if epoch % args.save_model_epoch_interval == 0:
         print('Saving..')
         state = {
             'net': net.state_dict(),
@@ -284,7 +286,20 @@ def test(epoch):
         }
         if not os.path.isdir('checkpoint'):
             os.mkdir('checkpoint')
-        torch.save(state, './checkpoint/{}_n_cls_{}_ckpt.pth'.format(args.net, args.num_class))
+        torch.save(state, './checkpoint/{}_n_cls_{}_epoch_{}_ckpt.pth'.\
+            format(args.net, args.num_class, str(args.save_model_epoch_interval)))
+        best_acc = acc
+    if acc > best_acc:
+        print('Saving..')
+        state = {
+            'net': net.state_dict(),
+            'acc': acc,
+            'epoch': epoch,
+        }
+        if not os.path.isdir('checkpoint'):
+            os.mkdir('checkpoint')
+        torch.save(state, './checkpoint/{}_n_cls_{}_best_ckpt.pth'.\
+            format(args.net, args.num_class))
         best_acc = acc
 
 print('\n\nargs.train: ', args.train, ', args.test:', args.test)
