@@ -15,13 +15,15 @@ from models import *
 from utils import progress_bar
 
 import wandb
-wandb.init(project="cifar-test")
+wandb.init(project="densenet-cifar")
 
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
 parser.add_argument('--resume', '-r', action='store_true',
                     help='resume from checkpoint')
+parser.add_argument('--save_name', default="./checkpoint/dsnet121_cf10_2.pth", type=str)
+parser.add_argument('--checkpoint', default="./checkpoint/dsnet121_cf10.pth", type=str)
 args = parser.parse_args()
 
 
@@ -44,12 +46,12 @@ transform_test = transforms.Compose([
 ])
 
 trainset = torchvision.datasets.CIFAR10(
-    root='/jagupard27/scr1/jiayili', train=True, download=True, transform=transform_train)
+    root='/self/scr0/jiayili', train=True, download=True, transform=transform_train)
 trainloader = torch.utils.data.DataLoader(
     trainset, batch_size=128, shuffle=True, num_workers=2)
 
 testset = torchvision.datasets.CIFAR10(
-    root='/jagupard27/scr1/jiayili', train=False, download=True, transform=transform_test)
+    root='/self/scr0/jiayili', train=False, download=True, transform=transform_test)
 testloader = torch.utils.data.DataLoader(
     testset, batch_size=100, shuffle=False, num_workers=2)
 
@@ -82,10 +84,11 @@ if args.resume:
     # Load checkpoint.
     print('==> Resuming from checkpoint..')
     assert os.path.isdir('checkpoint'), 'Error: no checkpoint directory found!'
-    checkpoint = torch.load('./checkpoint/ckpt.pth')
+    checkpoint = torch.load(args.checkpoint)
     net.load_state_dict(checkpoint['net'])
     best_acc = checkpoint['acc']
     start_epoch = checkpoint['epoch']
+    print("Finish Loading model with accuracy {}, achieved from epoch {}".format(best_acc, start_epoch))
 
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=args.lr,
@@ -94,7 +97,7 @@ scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
 
 wandb.config = {
   "learning_rate": args.lr,
-  "epochs": 100,
+  "epochs": 200,
   "batch_size": 128
 }
 
@@ -143,7 +146,7 @@ def test(epoch):
 
             progress_bar(batch_idx, len(testloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
                          % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
-            wandb.log({"test accuracy": 100.*correct/total})
+    wandb.log({"test accuracy": 100.*correct/total})
 
     # Save checkpoint.
     acc = 100.*correct/total
@@ -156,7 +159,7 @@ def test(epoch):
         }
         if not os.path.isdir('checkpoint'):
             os.mkdir('checkpoint')
-        torch.save(state, './checkpoint/ckpt.pth')
+        torch.save(state, args.save_name)
         best_acc = acc
 
 
