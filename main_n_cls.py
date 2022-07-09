@@ -182,7 +182,6 @@ def count_layer_params(model, layer_name=nn.Conv2d):
         format(layer_name, total_params, total_traina_params, n_layers))
     # time.sleep(100)
 
-net = net.to(device)
 if device == 'cuda':
     net = torch.nn.DataParallel(net)
     cudnn.benchmark = True
@@ -198,11 +197,11 @@ if args.resume:
     best_acc = checkpoint['acc']
     start_epoch = checkpoint['epoch']
 
+net = net.to(device)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=args.lr,
                       momentum=0.9, weight_decay=5e-4)
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
-
 
 # Training
 def train(epoch):
