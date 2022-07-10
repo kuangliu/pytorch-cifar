@@ -141,7 +141,7 @@ elif args.net == 'SENet18': net = SENet18()
 elif args.net == 'ShuffleNetV2': net = ShuffleNetV2(1, args.num_class)
 elif args.net == 'EfficientNetB0': net = EfficientNetB0(args.num_class)
 elif args.net == 'RegNetX_200MF': net = RegNetX_200MF()
-elif args.net == 'SimpleDLA': net = SimpleDLA(args.num_class)
+elif args.net == 'SimpleDLA': net = SimpleDLA(BasicBlock, args.num_class)
 
 # Borrow sparsity() and prune() from
 # https://github.com/ultralytics/yolov5/blob/a2a1ed201d150343a4f9912d644be2b210206984/utils/torch_utils.py#L174
