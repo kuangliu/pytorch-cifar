@@ -214,6 +214,7 @@ def train(epoch):
     total = 0
     # for batch_idx, (inputs, targets) in enumerate(trainloader):
     for batch_idx in range(len(train_inputs_n_cls) // args.train_batch_size):
+        print('training device: ', device)
         inputs, targets = None, None
         if (batch_idx + 1) * args.train_batch_size < len(train_inputs_n_cls):
             inputs = train_inputs_n_cls[batch_idx * args.train_batch_size : (batch_idx + 1) * args.train_batch_size]
@@ -257,7 +258,7 @@ def test(epoch):
     with torch.no_grad():
         # for batch_idx, (inputs, targets) in enumerate(testloader):
         for batch_idx in range(len(test_inputs_n_cls) // args.test_batch_size + 1):
-            print('device: ', device)
+            print('testing device: ', device)
             inputs, targets = None, None
             if (batch_idx + 1) * args.train_batch_size < len(test_inputs_n_cls):
                 inputs = test_inputs_n_cls[batch_idx * args.test_batch_size :]
