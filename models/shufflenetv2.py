@@ -94,7 +94,7 @@ class DownBlock(nn.Module):
 
 
 class ShuffleNetV2(nn.Module):
-    def __init__(self, net_size):
+    def __init__(self, net_size, num_classes):
         super(ShuffleNetV2, self).__init__()
         out_channels = configs[net_size]['out_channels']
         num_blocks = configs[net_size]['num_blocks']
@@ -109,7 +109,7 @@ class ShuffleNetV2(nn.Module):
         self.conv2 = nn.Conv2d(out_channels[2], out_channels[3],
                                kernel_size=1, stride=1, padding=0, bias=False)
         self.bn2 = nn.BatchNorm2d(out_channels[3])
-        self.linear = nn.Linear(out_channels[3], 10)
+        self.linear = nn.Linear(out_channels[3], num_classes)
 
     def _make_layer(self, out_channels, num_blocks):
         layers = [DownBlock(self.in_channels, out_channels)]

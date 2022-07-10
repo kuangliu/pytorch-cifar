@@ -127,21 +127,21 @@ classes = ('plane', 'car', 'bird', 'cat', 'deer',
 
 # Model
 print('==> Building model..')
-if args.net == 'VGG19': net = VGG('VGG19')
-elif args.net == 'ResNet18': net = ResNet18()
+if args.net == 'VGG19': net = VGG('VGG19', args.num_class)
+elif args.net == 'ResNet18': net = ResNet18(args.num_class)
 elif args.net == 'PreActResNet18': net = PreActResNet18()
-elif args.net == 'GoogLeNet': net = GoogLeNet()
+elif args.net == 'GoogLeNet': net = GoogLeNet(args.num_class)
 elif args.net == 'DenseNet121': net = DenseNet121()
-elif args.net == 'ResNeXt29_2x64d': net = ResNeXt29_2x64d()
-elif args.net == 'MobileNet': net = MobileNet()
+elif args.net == 'ResNeXt29_2x64d': net = ResNeXt29_2x64d(args.num_class)
+elif args.net == 'MobileNet': net = MobileNet(args.num_class)
 elif args.net == 'MobileNetV2': net = MobileNetV2(args.num_class)
 elif args.net == 'DPN92': net = DPN92()
-elif args.net == 'ShuffleNetG2': net = ShuffleNetG2()
+elif args.net == 'ShuffleNetG2': net = ShuffleNetG2(args.num_class)
 elif args.net == 'SENet18': net = SENet18()
-elif args.net == 'ShuffleNetV2': net = ShuffleNetV2(1)
-elif args.net == 'EfficientNetB0': net = EfficientNetB0()
+elif args.net == 'ShuffleNetV2': net = ShuffleNetV2(1, args.num_class)
+elif args.net == 'EfficientNetB0': net = EfficientNetB0(args.num_class)
 elif args.net == 'RegNetX_200MF': net = RegNetX_200MF()
-elif args.net == 'SimpleDLA': net = SimpleDLA()
+elif args.net == 'SimpleDLA': net = SimpleDLA(args.num_class)
 
 # Borrow sparsity() and prune() from
 # https://github.com/ultralytics/yolov5/blob/a2a1ed201d150343a4f9912d644be2b210206984/utils/torch_utils.py#L174
