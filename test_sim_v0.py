@@ -31,9 +31,6 @@ parser.add_argument('--prune', action='store_true')
 parser.add_argument('--pruning_rate', type=float, default=0.30)
 parser.add_argument('--test_batch_size', type=int, default=100)
 parser.add_argument('--select_device', type=str, default='gpu', help='gpu | cpu')
-parser.add_argument('--num_class', type=int, default=10)
-parser.add_argument('--save_model_epoch_interval', type=int, default=10)
-parser.add_argument('--load_epoch', type=str, default='best', help='best | <epoch>')
 
 args = parser.parse_args()
 
@@ -138,8 +135,7 @@ if args.resume:
     assert os.path.isdir('checkpoint'), 'Error: no checkpoint directory found!'
 
     print('\n\ndevice: ', device)
-    checkpoint = torch.load('./checkpoint/{}_n_cls_{}_epoch_{}_ckpt.pth'.\
-        format(args.net, args.num_class, args.load_epoch), map_location=device)
+    checkpoint = torch.load('./checkpoint/{}_ckpt.pth'.format(args.net), map_location=device)
     net.load_state_dict(checkpoint['net'], strict=False)
     print('\n model weights loaded!')
     best_acc = checkpoint['acc']
