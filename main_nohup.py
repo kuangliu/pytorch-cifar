@@ -32,6 +32,7 @@ args = parser.parse_args()
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 best_acc = 0  # best test accuracy
 start_epoch = 0  # start from epoch 0 or last checkpoint epoch
+num_class = 10
 
 # Data
 print('==> Preparing data..')
@@ -158,10 +159,22 @@ def test(epoch):
             _, predicted = outputs.max(1)
             total += targets.size(0)
             correct += predicted.eq(targets).sum().item()
-            
+
 
     # Save checkpoint.
     acc = 100.*correct/total
+    if epoch % args.save_model_epoch_interval == 0:
+        print('Saving..')
+        state = {
+            'net': net.state_dict(),
+            'acc': acc,
+            'epoch': epoch,
+        }
+        if not os.path.isdir('checkpoint'):
+            os.mkdir('checkpoint')
+        torch.save(state, './checkpoint/{}_n_cls_{}_epoch_{}_ckpt.pth'.\
+            format(args.net, num_class, str(epoch)))
+        best_acc = acc
     if acc > best_acc:
         print('Saving..')
         state = {
@@ -171,9 +184,9 @@ def test(epoch):
         }
         if not os.path.isdir('checkpoint'):
             os.mkdir('checkpoint')
-        torch.save(state, './checkpoint/{}_ckpt.pth'.format(args.net))
+        torch.save(state, './checkpoint/{}_n_cls_{}_epoch_best_ckpt.pth'.\
+            format(args.net, num_class))
         best_acc = acc
-
 
 for epoch in range(args.epochs):
     if args.train: train(epoch)
@@ -181,4 +194,3 @@ for epoch in range(args.epochs):
         test(epoch)
         if not args.train: break
     scheduler.step()
-

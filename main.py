@@ -34,6 +34,7 @@ args = parser.parse_args()
 device = 'cuda' if torch.cuda.is_available() and args.select_device == 'gpu' else 'cpu'
 best_acc = 0  # best test accuracy
 start_epoch = 0  # start from epoch 0 or last checkpoint epoch
+num_class = 10
 
 # Data
 print('==> Preparing data..')
@@ -107,13 +108,13 @@ def count_layer_params(model, layer_name=nn.Conv2d):
     total_traina_params = 0
     n_layers = 0
     for name, m in model.named_modules():
-        if isinstance(m, layer_name): 
+        if isinstance(m, layer_name):
             # print('\nm:', m)
             # print('\ndir(m): ', dir(m))
-            
+
             for name, parameter in m.named_parameters():
                 params = parameter.numel()
-                total_params += params    
+                total_params += params
                 if not parameter.requires_grad: continue
                 n_layers += 1
                 total_traina_params += params
@@ -130,8 +131,8 @@ if args.resume:
     # Load checkpoint.
     print('==> Resuming from checkpoint..')
     assert os.path.isdir('checkpoint'), 'Error: no checkpoint directory found!'
-  
-    print('\n\ndevice: ', device)  
+
+    print('\n\ndevice: ', device)
     checkpoint = torch.load('./checkpoint/{}_ckpt.pth'.format(args.net), map_location=device)
     net.load_state_dict(checkpoint['net'], strict=False)
     best_acc = checkpoint['acc']
@@ -172,7 +173,7 @@ def test(epoch):
     if args.prune:
         prune(net, args.pruning_rate)
     input_size = (1, 3, 32, 32)
-    summary(net, input_size) 
+    summary(net, input_size)
     count_layer_params(net)
 
 
@@ -191,12 +192,24 @@ def test(epoch):
             _, predicted = outputs.max(1)
             total += targets.size(0)
             correct += predicted.eq(targets).sum().item()
-            
+
             progress_bar(batch_idx, len(testloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
                          % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
     # Save checkpoint.
     acc = 100.*correct/total
+    if epoch % args.save_model_epoch_interval == 0:
+        print('Saving..')
+        state = {
+            'net': net.state_dict(),
+            'acc': acc,
+            'epoch': epoch,
+        }
+        if not os.path.isdir('checkpoint'):
+            os.mkdir('checkpoint')
+        torch.save(state, './checkpoint/{}_n_cls_{}_epoch_{}_ckpt.pth'.\
+            format(args.net, num_class, str(epoch)))
+        best_acc = acc
     if acc > best_acc:
         print('Saving..')
         state = {
@@ -206,7 +219,8 @@ def test(epoch):
         }
         if not os.path.isdir('checkpoint'):
             os.mkdir('checkpoint')
-        torch.save(state, './checkpoint/{}_ckpt.pth'.format(args.net))
+        torch.save(state, './checkpoint/{}_n_cls_{}_epoch_best_ckpt.pth'.\
+            format(args.net, num_class))
         best_acc = acc
 
 print('\n\nargs.train: ', args.train, ', args.test:', args.test)
@@ -216,4 +230,3 @@ for epoch in range(args.epochs):
         test(epoch)
         if not args.train: break
     scheduler.step()
-
