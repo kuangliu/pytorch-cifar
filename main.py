@@ -28,6 +28,8 @@ parser.add_argument('--prune', action='store_true')
 parser.add_argument('--pruning_rate', type=float, default=0.30)
 parser.add_argument('--test_batch_size', type=int, default=100)
 parser.add_argument('--select_device', type=str, default='gpu', help='gpu | cpu')
+parser.add_argument('--save_model_epoch_interval', type=int, default=10)
+parser.add_argument('--load_epoch', type=str, default='best', help='best | <epoch>')
 
 args = parser.parse_args()
 
