@@ -30,7 +30,7 @@ parser.add_argument('--pruning_rate', type=float, default=0.30)
 parser.add_argument('--train_batch_size', type=int, default=128)
 parser.add_argument('--test_batch_size', type=int, default=100)
 parser.add_argument('--select_device', type=str, default='gpu', help='gpu | cpu')
-parser.add_argument('--num_class', type=str, default='10, D4, S4')
+parser.add_argument('--num_class', type=str, default='10, D2G0, S2G0, S2G1, D4, S4')
 parser.add_argument('--save_model_epoch_interval', type=int, default=10)
 parser.add_argument('--load_epoch', type=str, default='best', help='best | <epoch>')
 
