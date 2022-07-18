@@ -98,7 +98,7 @@ def prepare_dataset(num_class=args.num_class):
                     train_targets_n_cls = torch.unsqueeze(torch.tensor(n_cls_ls.index(targets[in_i])), axis=0)
                 else:
                     train_inputs_n_cls = torch.cat((train_inputs_n_cls, torch.unsqueeze(input_, axis=0)), 0)
-                    train_targets_n_cls = torch.cat((train_targets_n_cls, torch.unsqueeze(torch.tensor(n_cls_ls(targets[in_i])), axis=0)), 0)
+                    train_targets_n_cls = torch.cat((train_targets_n_cls, torch.unsqueeze(torch.tensor(n_cls_ls.intex(targets[in_i])), axis=0)), 0)
                 # train_inputs_n_cls.append(input_)
     print('\n prepare_dataset() - train_inputs_n_cls.shape: ', train_inputs_n_cls.shape)
     # e.g. torch.Size([128, 3, 32, 32])
@@ -124,7 +124,7 @@ def prepare_dataset(num_class=args.num_class):
                     test_targets_n_cls = torch.unsqueeze(torch.tensor(n_cls_ls(targets[in_i])), axis=0)
                 else:
                     test_inputs_n_cls = torch.cat((test_inputs_n_cls, torch.unsqueeze(input_, axis=0)), 0)
-                    test_targets_n_cls = torch.cat((test_targets_n_cls, torch.unsqueeze(torch.tensor(n_cls_ls(targets[in_i])), axis=0)), 0)
+                    test_targets_n_cls = torch.cat((test_targets_n_cls, torch.unsqueeze(torch.tensor(n_cls_ls.intex(targets[in_i])), axis=0)), 0)
                 # test_inputs_n_cls.append(input_)
     print('\n prepare_dataset() - test_inputs_n_cls.shape: ', test_inputs_n_cls.shape)
     # e.g. torch.Size([128, 3, 32, 32])
