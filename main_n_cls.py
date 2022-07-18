@@ -121,7 +121,7 @@ def prepare_dataset(num_class=args.num_class):
                 # e.g. torch.Size([3, 32, 32])
                 if test_inputs_n_cls is None and test_targets_n_cls is None:
                     test_inputs_n_cls = torch.unsqueeze(input_, axis=0)
-                    test_targets_n_cls = torch.unsqueeze(torch.tensor(n_cls_ls(targets[in_i])), axis=0)
+                    test_targets_n_cls = torch.unsqueeze(torch.tensor(n_cls_ls.index(targets[in_i])), axis=0)
                 else:
                     test_inputs_n_cls = torch.cat((test_inputs_n_cls, torch.unsqueeze(input_, axis=0)), 0)
                     test_targets_n_cls = torch.cat((test_targets_n_cls, torch.unsqueeze(torch.tensor(n_cls_ls.index(targets[in_i])), axis=0)), 0)
