@@ -30,7 +30,8 @@ parser.add_argument('--pruning_rate', type=float, default=0.30)
 parser.add_argument('--train_batch_size', type=int, default=128)
 parser.add_argument('--test_batch_size', type=int, default=100)
 parser.add_argument('--select_device', type=str, default='gpu', help='gpu | cpu')
-parser.add_argument('--num_class', type=str, default='10, D2G0, D2G1, S2G0, S2G1, D4, S4')
+parser.add_argument('--class_group', type=str, default='ORI, D2G0, D2G1, S2G0, S2G1, D4, S4')
+parser.add_argument('--num_class', type=int, default=10)
 parser.add_argument('--save_model_epoch_interval', type=int, default=10)
 parser.add_argument('--load_epoch', type=str, default='best', help='best | <epoch>')
 
@@ -39,6 +40,8 @@ args = parser.parse_args()
 device = 'cuda' if torch.cuda.is_available() and args.select_device == 'gpu' else 'cpu'
 best_acc = 0  # best test accuracy
 start_epoch = 0  # start from epoch 0 or last checkpoint epoch
+if args.class_group != 'ORI':
+    args.num_class = int(args.class_group[1])
 
 # Data
 print('==> Preparing data..')
@@ -66,13 +69,13 @@ def prepare_dataset(num_class=args.num_class):
         testset, batch_size=args.test_batch_size, shuffle=False, num_workers=1)
 
     # class labels: https://www.cs.toronto.edu/~kriz/cifar.html
-    if num_class == 'D2G0': n_cls_ls = [0, 6] # airplane, frog
-    elif num_class == 'D2G1': n_cls_ls = [4, 8] # deer, ship
-    elif num_class == 'S2G0': n_cls_ls = [4, 7] # deer, horse
-    elif num_class == 'S2G1': n_cls_ls = [1, 9] # automobile, truck
-    elif num_class == 'D4': n_cls_ls = [0, 1, 3, 8] # airplane, automobile, cat, ship
-    elif num_class == 'S4': n_cls_ls = [3, 4, 5, 6] # cat, deer, dog, horse
-    else: n_cls_ls = list(range(int(num_class)))
+    if args.class_group == 'D2G0': n_cls_ls = [0, 6] # airplane, frog
+    elif args.class_group == 'D2G1': n_cls_ls = [4, 8] # deer, ship
+    elif args.class_group == 'S2G0': n_cls_ls = [4, 7] # deer, horse
+    elif args.class_group == 'S2G1': n_cls_ls = [1, 9] # automobile, truck
+    elif args.class_group == 'D4': n_cls_ls = [0, 1, 3, 8] # airplane, automobile, cat, ship
+    elif args.class_group == 'S4': n_cls_ls = [3, 4, 5, 6] # cat, deer, dog, horse
+    else: n_cls_ls = list(range(num_class))
 
     # Prepare n_cls data for train set
     train_inputs_n_cls, train_targets_n_cls = None, None
