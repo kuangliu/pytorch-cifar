@@ -30,7 +30,7 @@ parser.add_argument('--pruning_rate', type=float, default=0.30)
 parser.add_argument('--train_batch_size', type=int, default=128)
 parser.add_argument('--test_batch_size', type=int, default=100)
 parser.add_argument('--select_device', type=str, default='gpu', help='gpu | cpu')
-parser.add_argument('--num_class', type=str, default='10, D2G0, S2G0, S2G1, D4, S4')
+parser.add_argument('--num_class', type=str, default='10, D2G0, D2G1, S2G0, S2G1, D4, S4')
 parser.add_argument('--save_model_epoch_interval', type=int, default=10)
 parser.add_argument('--load_epoch', type=str, default='best', help='best | <epoch>')
 
@@ -67,6 +67,7 @@ def prepare_dataset(num_class=args.num_class):
 
     # class labels: https://www.cs.toronto.edu/~kriz/cifar.html
     if num_class == 'D2G0': n_cls_ls = [0, 6] # airplane, frog
+    elif num_class == 'D2G1': n_cls_ls = [4, 8] # deer, ship
     elif num_class == 'S2G0': n_cls_ls = [4, 7] # deer, horse
     elif num_class == 'S2G1': n_cls_ls = [1, 9] # automobile, truck
     elif num_class == 'D4': n_cls_ls = [0, 1, 3, 8] # airplane, automobile, cat, ship
