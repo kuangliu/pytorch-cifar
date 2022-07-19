@@ -30,7 +30,7 @@ parser.add_argument('--pruning_rate', type=float, default=0.30)
 parser.add_argument('--train_batch_size', type=int, default=128)
 parser.add_argument('--test_batch_size', type=int, default=100)
 parser.add_argument('--select_device', type=str, default='gpu', help='gpu | cpu')
-parser.add_argument('--class_group', type=str, default='ORI, D2G0, D2G1, S2G0, S2G1, D4, S4')
+parser.add_argument('--class_group', type=str, default='ORI', help='ORI, D2G0, D2G1, S2G0, S2G1, D4, S4')
 parser.add_argument('--num_class', type=int, default=10)
 parser.add_argument('--save_model_epoch_interval', type=int, default=10)
 parser.add_argument('--load_epoch', type=str, default='best', help='best | <epoch>')
@@ -204,8 +204,8 @@ if args.resume:
     assert os.path.isdir('checkpoint'), 'Error: no checkpoint directory found!'
 
     print('\n\ndevice: ', device)
-    checkpoint = torch.load('./checkpoint/{}_n_cls_{}_epoch_{}_ckpt.pth'.\
-        format(args.net, args.num_class, args.load_epoch), map_location=device)
+    checkpoint = torch.load('./checkpoint/{}_{}_n_cls_{}_epoch_{}_ckpt.pth'.\
+        format(args.net, args.class_group, args.num_class, args.load_epoch), map_location=device)
     net.load_state_dict(checkpoint['net'], strict=False)
     best_acc = checkpoint['acc']
     start_epoch = checkpoint['epoch']
@@ -305,8 +305,8 @@ def test(epoch):
         }
         if not os.path.isdir('checkpoint'):
             os.mkdir('checkpoint')
-        torch.save(state, './checkpoint/{}_n_cls_{}_epoch_{}_ckpt.pth'.\
-            format(args.net, args.num_class, str(epoch)))
+        torch.save(state, './checkpoint/{}_{}_n_cls_{}_epoch_{}_ckpt.pth'.\
+            format(args.net, args.class_group, args.num_class, str(epoch)))
         best_acc = acc
     if acc > best_acc:
         print('Saving..')
@@ -317,8 +317,8 @@ def test(epoch):
         }
         if not os.path.isdir('checkpoint'):
             os.mkdir('checkpoint')
-        torch.save(state, './checkpoint/{}_n_cls_{}_epoch_best_ckpt.pth'.\
-            format(args.net, args.num_class))
+        torch.save(state, './checkpoint/{}_{}_n_cls_{}_epoch_best_ckpt.pth'.\
+            format(args.net, args.class_group, args.num_class))
         best_acc = acc
 
 print('\n\nargs.train: ', args.train, ', args.test:', args.test)
