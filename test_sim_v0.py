@@ -15,6 +15,9 @@ import argparse
 from models import *
 from utils import progress_bar
 import time
+import numpy as np
+import matplotlib.pyplot as plt
+import cv2
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
@@ -28,15 +31,12 @@ parser.add_argument('--prune', action='store_true')
 parser.add_argument('--pruning_rate', type=float, default=0.30)
 parser.add_argument('--test_batch_size', type=int, default=100)
 parser.add_argument('--select_device', type=str, default='gpu', help='gpu | cpu')
-parser.add_argument('--save_model_epoch_interval', type=int, default=10)
-parser.add_argument('--load_epoch', type=str, default='best', help='best | <epoch>')
 
 args = parser.parse_args()
 
 device = 'cuda' if torch.cuda.is_available() and args.select_device == 'gpu' else 'cpu'
 best_acc = 0  # best test accuracy
 start_epoch = 0  # start from epoch 0 or last checkpoint epoch
-num_class = 10
 
 # Data
 print('==> Preparing data..')
@@ -122,11 +122,11 @@ def count_layer_params(model, layer_name=nn.Conv2d):
                 total_traina_params += params
     print('\n\nlayer_name: {}, total_params: {}, total_traina_params: {}, n_layers: {}'.\
         format(layer_name, total_params, total_traina_params, n_layers))
-    time.sleep(100)
+    # time.sleep(100)
 
 net = net.to(device)
 if device == 'cuda':
-    net = torch.nn.DataParallel(net)
+    if args.train: net = torch.nn.DataParallel(net)
     cudnn.benchmark = True
 
 if args.resume:
@@ -137,6 +137,7 @@ if args.resume:
     print('\n\ndevice: ', device)
     checkpoint = torch.load('./checkpoint/{}_ckpt.pth'.format(args.net), map_location=device)
     net.load_state_dict(checkpoint['net'], strict=False)
+    print('\n model weights loaded!')
     best_acc = checkpoint['acc']
     start_epoch = checkpoint['epoch']
 
@@ -178,6 +179,67 @@ def test(epoch):
     summary(net, input_size)
     count_layer_params(net)
 
+    # print('------------')
+    # print(net)
+
+    def extract_features_labels(my_net, my_data):
+        intermediate_outputs = []
+
+        def hook(module, input, output):
+            for output_each in output:
+                intermediate_outputs.append(output_each.detach().cpu().tolist()) # intermediate outputs
+
+        # print('np.shape(my_data): ', np.shape(my_data))
+        # print('\n net: ', net)
+        # print('\n dir(my_net): ', dir(my_net))
+        # print('\n dir(my_net.children()): ', dir(my_net.children()))
+        my_net.layer4[1].shortcut.register_forward_hook(hook) # intermediate outputs from the third last fc layer
+
+        features = []
+        labels = []
+        # print('\n np.shape(my_data): ', np.shape(my_data))
+        '''
+        e.g.
+        np.shape(my_data):  torch.Size([1, 3, 32, 32])
+        '''
+        # e.g. torch.Size([1, 3, 32, 32])
+        # for step, (x, y) in enumerate(my_data):
+        #     batch_x = Variable(x)
+        #     batch_y = Variable(y)
+        #     output = my_net(batch_x)
+        #     labels.extend(batch_y.numpy().tolist())
+
+        output = my_net(my_data)
+        features = torch.from_numpy(np.array(intermediate_outputs))
+        # print('\n np.shape(output): ', np.shape(output))
+        # print('\n np.shape(np.array(features)): ', np.shape(np.array(features)))
+        '''
+        e.g.
+        np.shape(output):  torch.Size([1, 10])
+        np.shape(np.array(features)):  (1, 512, 4, 4)
+        '''
+        # features = torch.flatten(features)
+        # print('\n after flattened - np.shape(features): ', np.shape(features))
+        # return np.array(features)
+        # print('\n np.shape(features): ', np.shape(features))
+        return features
+
+    def vis_compute_sim(net, input_0, input_1):
+        feats_0 = extract_features_labels(net, input_0)
+        feats_1 = extract_features_labels(net, input_1)
+        input_0 = (input_0 / 2 + 0.5) # * 255
+        input_1 = (input_1 / 2 + 0.5) # * 255
+
+        plt.imshow(np.transpose(torch.squeeze(input_0).cpu(), (1, 2, 0))); plt.show()
+        plt.imshow(np.transpose(torch.squeeze(input_1).cpu(), (1, 2, 0))); plt.show()
+        # sim_score = np.cos(np.array(feats_0).flatten(), np.array(feats_1).flatten())
+        print('\n np.shape(feats_0): ', np.shape(feats_0))
+        # torch.Size([1, 512, 4, 4])
+        cos = nn.CosineSimilarity(dim=1, eps=1e-6)
+        sim_score = cos(feats_0, feats_1)
+        print('\n np.shape(sim_score): ', np.shape(sim_score))
+        sim_score = sim_score[0][0][0] # torch.mean(sim_score)
+        return sim_score
 
     net.eval()
     test_loss = 0
@@ -185,10 +247,29 @@ def test(epoch):
     total = 0
     with torch.no_grad():
         for batch_idx, (inputs, targets) in enumerate(testloader):
-            print('device: ', device)
+            # print('device: ', device)
+            # print('\n np.shape(inputs): ', np.shape(inputs))
+            # e.g. torch.Size([5, 3, 32, 32])
             inputs, targets = inputs.to(device), targets.to(device)
             outputs = net(inputs)
             loss = criterion(outputs, targets)
+
+            # print('targets: ', targets)
+            # print('\n np.shape(targets): ', np.shape(targets))
+            # print('\n np.shape(inputs): ', np.shape(inputs))
+            # e.g.
+            # np.shape(targets):  torch.Size([5])
+            # np.shape(inputs):  torch.Size([5, 3, 32, 32]) # [batch_size, channels, , ]
+
+            for i in range(args.test_batch_size):
+                for j in range(args.test_batch_size):
+                    input_0, input_1 = torch.unsqueeze(inputs[i], dim=0), torch.unsqueeze(inputs[j], dim=0)
+                    sim_score = vis_compute_sim(net, input_0, input_1)
+                    print('\n =====================')
+                    print('\n i: ', i, ', j: ', j)
+                    print('\n targets[i]: ', targets[i], ', targets[j]: ', targets[j])
+                    print('\n sim_score: ', sim_score)
+                    print('\n ---------------------')
 
             test_loss += loss.item()
             _, predicted = outputs.max(1)
@@ -200,18 +281,6 @@ def test(epoch):
 
     # Save checkpoint.
     acc = 100.*correct/total
-    if epoch % args.save_model_epoch_interval == 0:
-        print('Saving..')
-        state = {
-            'net': net.state_dict(),
-            'acc': acc,
-            'epoch': epoch,
-        }
-        if not os.path.isdir('checkpoint'):
-            os.mkdir('checkpoint')
-        torch.save(state, './checkpoint/{}_n_cls_{}_epoch_{}_ckpt.pth'.\
-            format(args.net, num_class, str(epoch)))
-        best_acc = acc
     if acc > best_acc:
         print('Saving..')
         state = {
@@ -221,8 +290,7 @@ def test(epoch):
         }
         if not os.path.isdir('checkpoint'):
             os.mkdir('checkpoint')
-        torch.save(state, './checkpoint/{}_n_cls_{}_epoch_best_ckpt.pth'.\
-            format(args.net, num_class))
+        torch.save(state, './checkpoint/{}_ckpt.pth'.format(args.net))
         best_acc = acc
 
 print('\n\nargs.train: ', args.train, ', args.test:', args.test)

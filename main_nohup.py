@@ -4,7 +4,6 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
-from torchinfo import summary
 
 import torchvision
 import torchvision.transforms as transforms
@@ -13,8 +12,7 @@ import os
 import argparse
 
 from models import *
-from utils import progress_bar
-import time
+
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
@@ -33,7 +31,7 @@ parser.add_argument('--load_epoch', type=str, default='best', help='best | <epoc
 
 args = parser.parse_args()
 
-device = 'cuda' if torch.cuda.is_available() and args.select_device == 'gpu' else 'cpu'
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
 best_acc = 0  # best test accuracy
 start_epoch = 0  # start from epoch 0 or last checkpoint epoch
 num_class = 10
@@ -60,7 +58,7 @@ trainloader = torch.utils.data.DataLoader(
 testset = torchvision.datasets.CIFAR10(
     root='./data', train=False, download=True, transform=transform_test)
 testloader = torch.utils.data.DataLoader(
-    testset, batch_size=args.test_batch_size, shuffle=False, num_workers=1)
+    testset, batch_size=args.test_batch_size, shuffle=False, num_workers=2)
 
 classes = ('plane', 'car', 'bird', 'cat', 'deer',
            'dog', 'frog', 'horse', 'ship', 'truck')
@@ -103,27 +101,6 @@ def prune(model, amount=0.3):
             prune.remove(m, 'weight')  # make permanent
             print(' %.3g global sparsity' % sparsity(model))
 
-
-def count_layer_params(model, layer_name=nn.Conv2d):
-    print('\n\n layer_name: ', layer_name)
-    total_params = 0
-    total_traina_params = 0
-    n_layers = 0
-    for name, m in model.named_modules():
-        if isinstance(m, layer_name):
-            # print('\nm:', m)
-            # print('\ndir(m): ', dir(m))
-
-            for name, parameter in m.named_parameters():
-                params = parameter.numel()
-                total_params += params
-                if not parameter.requires_grad: continue
-                n_layers += 1
-                total_traina_params += params
-    print('\n\nlayer_name: {}, total_params: {}, total_traina_params: {}, n_layers: {}'.\
-        format(layer_name, total_params, total_traina_params, n_layers))
-    time.sleep(100)
-
 net = net.to(device)
 if device == 'cuda':
     net = torch.nn.DataParallel(net)
@@ -133,10 +110,8 @@ if args.resume:
     # Load checkpoint.
     print('==> Resuming from checkpoint..')
     assert os.path.isdir('checkpoint'), 'Error: no checkpoint directory found!'
-
-    print('\n\ndevice: ', device)
-    checkpoint = torch.load('./checkpoint/{}_ckpt.pth'.format(args.net), map_location=device)
-    net.load_state_dict(checkpoint['net'], strict=False)
+    checkpoint = torch.load('./checkpoint/{}_ckpt.pth'.format(args.net))
+    net.load_state_dict(checkpoint['net'])
     best_acc = checkpoint['acc']
     start_epoch = checkpoint['epoch']
 
@@ -166,18 +141,11 @@ def train(epoch):
         total += targets.size(0)
         correct += predicted.eq(targets).sum().item()
 
-        progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-                     % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
-
 
 def test(epoch):
     global best_acc
     if args.prune:
         prune(net, args.pruning_rate)
-    input_size = (1, 3, 32, 32)
-    summary(net, input_size)
-    count_layer_params(net)
-
 
     net.eval()
     test_loss = 0
@@ -185,7 +153,6 @@ def test(epoch):
     total = 0
     with torch.no_grad():
         for batch_idx, (inputs, targets) in enumerate(testloader):
-            print('device: ', device)
             inputs, targets = inputs.to(device), targets.to(device)
             outputs = net(inputs)
             loss = criterion(outputs, targets)
@@ -195,8 +162,6 @@ def test(epoch):
             total += targets.size(0)
             correct += predicted.eq(targets).sum().item()
 
-            progress_bar(batch_idx, len(testloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-                         % (test_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
     # Save checkpoint.
     acc = 100.*correct/total
@@ -225,7 +190,6 @@ def test(epoch):
             format(args.net, num_class))
         best_acc = acc
 
-print('\n\nargs.train: ', args.train, ', args.test:', args.test)
 for epoch in range(args.epochs):
     if args.train: train(epoch)
     if args.test:
