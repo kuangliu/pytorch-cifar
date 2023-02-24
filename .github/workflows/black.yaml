@@ -1,0 +1,41 @@
+name: Black Code Formatter and Security Policy
+
+on: [push]
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.8
+
+      - name: Install dependencies
+        run: pip install black
+
+      - name: Run Black
+        run: black .
+
+
+          
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-sphinx
+      - name: Build documentation
+        run: |
+          sphinx-build -b html docs/ build/
+      - name: Publish documentation
+        uses: peaceiris/actions-gh-pages@v3.7.0
+        with:
+          personal_token: ${{ secrets.GH_PAGES_TOKEN }}
+          publish_dir: ./build/

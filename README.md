@@ -32,4 +32,4 @@ python main.py --resume --lr=0.01
 | [PreActResNet18](https://arxiv.org/abs/1603.05027)    | 95.11%      |
 | [DPN92](https://arxiv.org/abs/1707.01629)             | 95.16%      |
 | [DLA](https://arxiv.org/pdf/1707.06484.pdf)           | 95.47%      |
-
+| [Xception](https://arxiv.org/abs/1610.02357)           | 96.90%      |
