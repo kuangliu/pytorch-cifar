@@ -21,28 +21,6 @@ jobs:
         run: black .
 
 
-  analyze:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
-
-      - name: Setup CodeQL
-        uses: github/codeql-action/setup@v2
-        with:
-          languages: python
-
-      - name: Build CodeQL database
-        uses: github/codeql-action/analyze@v2
-        with:
-          query: security-features.ql
-          languages: python
-          database: codeql-db
-
-      - name: Upload SARIF results
-        uses: github/codeql-action/upload-sarif@v2
-        with:
-          sarif_file: codeql-results.sarif
           
   build:
     runs-on: ubuntu-latest
