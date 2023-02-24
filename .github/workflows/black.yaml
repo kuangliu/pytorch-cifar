@@ -28,7 +28,7 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Setup CodeQL
-        uses: github/codeql-action/init@v2
+        uses: github/codeql-action/setup@v2
         with:
           languages: python
 
@@ -37,9 +37,9 @@ jobs:
         with:
           query: security-features.ql
           languages: python
-          database-path: codeql-db
+          database: codeql-db
 
       - name: Upload SARIF results
-        uses: github/codeql-action/upload-sarif@v1
+        uses: github/codeql-action/upload-sarif@v2
         with:
           sarif_file: codeql-results.sarif
