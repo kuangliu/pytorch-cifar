@@ -1,4 +1,4 @@
-name: Black Code Formatter
+name: Black Code Formatter and Security Policy
 
 on: [push]
 
@@ -19,3 +19,27 @@ jobs:
 
       - name: Run Black
         run: black .
+
+
+  analyze:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Setup CodeQL
+        uses: github/codeql-action/init@v1
+        with:
+          languages: python
+
+      - name: Build CodeQL database
+        uses: github/codeql-action/analyze@v1
+        with:
+          query: security-features.ql
+          languages: python
+          database-path: codeql-db
+
+      - name: Upload SARIF results
+        uses: github/codeql-action/upload-sarif@v1
+        with:
+          sarif_file: codeql-results.sarif
