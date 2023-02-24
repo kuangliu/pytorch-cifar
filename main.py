@@ -68,8 +68,9 @@ print('==> Building model..')
 # net = ShuffleNetV2(1)
 # net = EfficientNetB0()
 # net = RegNetX_200MF()
-net = SimpleDLA()
-net = net.to(device)
+# net = SimpleDLA()
+# net = net.to(device)
+net = xception(pretrained = False, num_classes=10)
 if device == 'cuda':
     net = torch.nn.DataParallel(net)
     cudnn.benchmark = True
@@ -147,8 +148,8 @@ def test(epoch):
         torch.save(state, './checkpoint/ckpt.pth')
         best_acc = acc
 
-
-for epoch in range(start_epoch, start_epoch+200):
-    train(epoch)
-    test(epoch)
-    scheduler.step()
+if __name__ == '__main__':
+    for epoch in range(start_epoch, start_epoch+200):
+        train(epoch)
+        test(epoch)
+        scheduler.step()
